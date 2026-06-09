@@ -1,0 +1,223 @@
+2025-12-29 21:59:47 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2025-12-29 22:00:22 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2025-12-29 22:00:22 - __main__ - INFO - Found 9 datasets: BA_100, BA_200, BA_50, BA_500, Chinanet, Cogentco, Colt, GtsCe, UsCarrier
+2025-12-29 22:00:22 - __main__ - INFO - Starting simulation: Dataset=BA_100, Attack=random, Batch=50
+2025-12-29 22:00:22 - __main__ - DEBUG - Command: python main.py --dataset BA_100 --attack random --batch_size 50
+2025-12-29 22:39:15 - __main__ - INFO - Finished: BA_100 (random)
+2025-12-29 22:39:15 - __main__ - INFO - Progress: 1/18 tasks completed.
+2025-12-29 22:39:15 - __main__ - INFO - Starting simulation: Dataset=BA_100, Attack=degree, Batch=50
+2025-12-29 22:39:15 - __main__ - DEBUG - Command: python main.py --dataset BA_100 --attack degree --batch_size 50
+2025-12-29 23:15:40 - __main__ - INFO - Finished: BA_100 (degree)
+2025-12-29 23:15:40 - __main__ - INFO - Progress: 2/18 tasks completed.
+2025-12-29 23:15:40 - __main__ - INFO - Starting simulation: Dataset=BA_200, Attack=random, Batch=50
+2025-12-29 23:15:40 - __main__ - DEBUG - Command: python main.py --dataset BA_200 --attack random --batch_size 50
+2025-12-30 02:13:32 - __main__ - INFO - Finished: BA_200 (random)
+2025-12-30 02:13:32 - __main__ - INFO - Progress: 3/18 tasks completed.
+2025-12-30 02:13:32 - __main__ - INFO - Starting simulation: Dataset=BA_200, Attack=degree, Batch=50
+2025-12-30 02:13:32 - __main__ - DEBUG - Command: python main.py --dataset BA_200 --attack degree --batch_size 50
+2025-12-30 05:03:40 - __main__ - INFO - Finished: BA_200 (degree)
+2025-12-30 05:03:40 - __main__ - INFO - Progress: 4/18 tasks completed.
+2025-12-30 05:03:40 - __main__ - INFO - Starting simulation: Dataset=BA_50, Attack=random, Batch=50
+2025-12-30 05:03:40 - __main__ - DEBUG - Command: python main.py --dataset BA_50 --attack random --batch_size 50
+2025-12-30 05:14:04 - __main__ - INFO - Finished: BA_50 (random)
+2025-12-30 05:14:04 - __main__ - INFO - Progress: 5/18 tasks completed.
+2025-12-30 05:14:04 - __main__ - INFO - Starting simulation: Dataset=BA_50, Attack=degree, Batch=50
+2025-12-30 05:14:04 - __main__ - DEBUG - Command: python main.py --dataset BA_50 --attack degree --batch_size 50
+2025-12-30 05:24:32 - __main__ - INFO - Finished: BA_50 (degree)
+2025-12-30 05:24:32 - __main__ - INFO - Progress: 6/18 tasks completed.
+2025-12-30 05:24:32 - __main__ - INFO - Starting simulation: Dataset=BA_500, Attack=random, Batch=50
+2025-12-30 05:24:32 - __main__ - DEBUG - Command: python main.py --dataset BA_500 --attack random --batch_size 50
+2025-12-30 20:56:00 - __main__ - INFO - Finished: BA_500 (random)
+2025-12-30 20:56:00 - __main__ - INFO - Progress: 7/18 tasks completed.
+2025-12-30 20:56:00 - __main__ - INFO - Starting simulation: Dataset=BA_500, Attack=degree, Batch=50
+2025-12-30 20:56:00 - __main__ - DEBUG - Command: python main.py --dataset BA_500 --attack degree --batch_size 50
+2025-12-31 09:05:31 - __main__ - WARNING - 
+Interrupted by user.
+2025-12-31 09:05:31 - __main__ - INFO - Stopping execution.
+2025-12-31 09:07:10 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2025-12-31 09:07:10 - __main__ - INFO - Found 5 datasets: Chinanet, Cogentco, Colt, GtsCe, UsCarrier
+2025-12-31 09:07:10 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=random, Batch=10
+2025-12-31 09:07:10 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack random --batch_size 10
+2025-12-31 09:09:21 - __main__ - INFO - Finished: Chinanet (random)
+2025-12-31 09:09:21 - __main__ - INFO - Progress: 1/10 tasks completed.
+2025-12-31 09:09:21 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=degree, Batch=10
+2025-12-31 09:09:21 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack degree --batch_size 10
+2025-12-31 09:11:25 - __main__ - INFO - Finished: Chinanet (degree)
+2025-12-31 09:11:25 - __main__ - INFO - Progress: 2/10 tasks completed.
+2025-12-31 09:11:25 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=random, Batch=10
+2025-12-31 09:11:25 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack random --batch_size 10
+2025-12-31 09:47:02 - __main__ - INFO - Finished: Cogentco (random)
+2025-12-31 09:47:02 - __main__ - INFO - Progress: 3/10 tasks completed.
+2025-12-31 09:47:02 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=degree, Batch=10
+2025-12-31 09:47:02 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack degree --batch_size 10
+2025-12-31 10:22:50 - __main__ - INFO - Finished: Cogentco (degree)
+2025-12-31 10:22:50 - __main__ - INFO - Progress: 4/10 tasks completed.
+2025-12-31 10:22:50 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=random, Batch=10
+2025-12-31 10:22:50 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack random --batch_size 10
+2025-12-31 10:45:31 - __main__ - INFO - Finished: Colt (random)
+2025-12-31 10:45:31 - __main__ - INFO - Progress: 5/10 tasks completed.
+2025-12-31 10:45:31 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=degree, Batch=10
+2025-12-31 10:45:31 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack degree --batch_size 10
+2025-12-31 11:08:19 - __main__ - INFO - Finished: Colt (degree)
+2025-12-31 11:08:19 - __main__ - INFO - Progress: 6/10 tasks completed.
+2025-12-31 11:08:19 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=random, Batch=10
+2025-12-31 11:08:19 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack random --batch_size 10
+2025-12-31 11:30:00 - __main__ - INFO - Finished: GtsCe (random)
+2025-12-31 11:30:00 - __main__ - INFO - Progress: 7/10 tasks completed.
+2025-12-31 11:30:00 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=degree, Batch=10
+2025-12-31 11:30:00 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack degree --batch_size 10
+2025-12-31 13:07:26 - __main__ - INFO - Finished: GtsCe (degree)
+2025-12-31 13:07:26 - __main__ - INFO - Progress: 8/10 tasks completed.
+2025-12-31 13:07:26 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=random, Batch=10
+2025-12-31 13:07:26 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack random --batch_size 10
+2025-12-31 13:31:58 - __main__ - INFO - Finished: UsCarrier (random)
+2025-12-31 13:31:58 - __main__ - INFO - Progress: 9/10 tasks completed.
+2025-12-31 13:31:58 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=degree, Batch=10
+2025-12-31 13:31:58 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack degree --batch_size 10
+2025-12-31 13:55:21 - __main__ - INFO - Finished: UsCarrier (degree)
+2025-12-31 13:55:21 - __main__ - INFO - Progress: 10/10 tasks completed.
+2025-12-31 13:55:21 - __main__ - INFO - All simulations completed in 288.17 minutes.
+2026-01-06 11:21:50 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2026-01-06 11:21:50 - __main__ - INFO - Found 5 datasets: Chinanet, Cogentco, Colt, GtsCe, UsCarrier
+2026-01-06 11:21:50 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=random, Batch=1
+2026-01-06 11:21:50 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack random --batch_size 1
+2026-01-06 11:22:12 - __main__ - INFO - Finished: Chinanet (random)
+2026-01-06 11:22:12 - __main__ - INFO - Progress: 1/10 tasks completed.
+2026-01-06 11:22:12 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=degree, Batch=1
+2026-01-06 11:22:12 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack degree --batch_size 1
+2026-01-06 11:22:36 - __main__ - INFO - Finished: Chinanet (degree)
+2026-01-06 11:22:36 - __main__ - INFO - Progress: 2/10 tasks completed.
+2026-01-06 11:22:36 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=random, Batch=1
+2026-01-06 11:22:36 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack random --batch_size 1
+2026-01-06 11:26:21 - __main__ - INFO - Finished: Cogentco (random)
+2026-01-06 11:26:21 - __main__ - INFO - Progress: 3/10 tasks completed.
+2026-01-06 11:26:21 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=degree, Batch=1
+2026-01-06 11:26:21 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack degree --batch_size 1
+2026-01-06 11:30:13 - __main__ - INFO - Finished: Cogentco (degree)
+2026-01-06 11:30:13 - __main__ - INFO - Progress: 4/10 tasks completed.
+2026-01-06 11:30:13 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=random, Batch=1
+2026-01-06 11:30:13 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack random --batch_size 1
+2026-01-06 11:32:47 - __main__ - INFO - Finished: Colt (random)
+2026-01-06 11:32:47 - __main__ - INFO - Progress: 5/10 tasks completed.
+2026-01-06 11:32:47 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=degree, Batch=1
+2026-01-06 11:32:47 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack degree --batch_size 1
+2026-01-06 11:35:21 - __main__ - INFO - Finished: Colt (degree)
+2026-01-06 11:35:21 - __main__ - INFO - Progress: 6/10 tasks completed.
+2026-01-06 11:35:21 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=random, Batch=1
+2026-01-06 11:35:21 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack random --batch_size 1
+2026-01-06 11:37:43 - __main__ - INFO - Finished: GtsCe (random)
+2026-01-06 11:37:43 - __main__ - INFO - Progress: 7/10 tasks completed.
+2026-01-06 11:37:43 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=degree, Batch=1
+2026-01-06 11:37:43 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack degree --batch_size 1
+2026-01-06 11:40:03 - __main__ - INFO - Finished: GtsCe (degree)
+2026-01-06 11:40:03 - __main__ - INFO - Progress: 8/10 tasks completed.
+2026-01-06 11:40:03 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=random, Batch=1
+2026-01-06 11:40:03 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack random --batch_size 1
+2026-01-06 11:42:32 - __main__ - INFO - Finished: UsCarrier (random)
+2026-01-06 11:42:32 - __main__ - INFO - Progress: 9/10 tasks completed.
+2026-01-06 11:42:32 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=degree, Batch=1
+2026-01-06 11:42:32 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack degree --batch_size 1
+2026-01-06 11:44:57 - __main__ - INFO - Finished: UsCarrier (degree)
+2026-01-06 11:44:57 - __main__ - INFO - Progress: 10/10 tasks completed.
+2026-01-06 11:44:57 - __main__ - INFO - All simulations completed in 23.12 minutes.
+2026-01-06 15:20:24 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2026-01-06 15:20:24 - __main__ - INFO - Found 5 datasets: Chinanet, Cogentco, Colt, GtsCe, UsCarrier
+2026-01-06 15:20:24 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=random, Batch=1
+2026-01-06 15:20:24 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack random --batch_size 1
+2026-01-06 15:20:48 - __main__ - INFO - Finished: Chinanet (random)
+2026-01-06 15:20:48 - __main__ - INFO - Progress: 1/10 tasks completed.
+2026-01-06 15:20:48 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=degree, Batch=1
+2026-01-06 15:20:48 - __main__ - DEBUG - Command: python main.py --dataset Chinanet --attack degree --batch_size 1
+2026-01-06 15:21:11 - __main__ - INFO - Finished: Chinanet (degree)
+2026-01-06 15:21:11 - __main__ - INFO - Progress: 2/10 tasks completed.
+2026-01-06 15:21:11 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=random, Batch=1
+2026-01-06 15:21:11 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack random --batch_size 1
+2026-01-06 15:25:06 - __main__ - INFO - Finished: Cogentco (random)
+2026-01-06 15:25:06 - __main__ - INFO - Progress: 3/10 tasks completed.
+2026-01-06 15:25:06 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=degree, Batch=1
+2026-01-06 15:25:06 - __main__ - DEBUG - Command: python main.py --dataset Cogentco --attack degree --batch_size 1
+2026-01-06 15:28:54 - __main__ - INFO - Finished: Cogentco (degree)
+2026-01-06 15:28:54 - __main__ - INFO - Progress: 4/10 tasks completed.
+2026-01-06 15:28:54 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=random, Batch=1
+2026-01-06 15:28:54 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack random --batch_size 1
+2026-01-06 15:31:37 - __main__ - INFO - Finished: Colt (random)
+2026-01-06 15:31:37 - __main__ - INFO - Progress: 5/10 tasks completed.
+2026-01-06 15:31:37 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=degree, Batch=1
+2026-01-06 15:31:37 - __main__ - DEBUG - Command: python main.py --dataset Colt --attack degree --batch_size 1
+2026-01-06 15:34:13 - __main__ - INFO - Finished: Colt (degree)
+2026-01-06 15:34:13 - __main__ - INFO - Progress: 6/10 tasks completed.
+2026-01-06 15:34:13 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=random, Batch=1
+2026-01-06 15:34:13 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack random --batch_size 1
+2026-01-06 15:36:39 - __main__ - INFO - Finished: GtsCe (random)
+2026-01-06 15:36:39 - __main__ - INFO - Progress: 7/10 tasks completed.
+2026-01-06 15:36:39 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=degree, Batch=1
+2026-01-06 15:36:39 - __main__ - DEBUG - Command: python main.py --dataset GtsCe --attack degree --batch_size 1
+2026-01-06 15:39:05 - __main__ - INFO - Finished: GtsCe (degree)
+2026-01-06 15:39:05 - __main__ - INFO - Progress: 8/10 tasks completed.
+2026-01-06 15:39:05 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=random, Batch=1
+2026-01-06 15:39:05 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack random --batch_size 1
+2026-01-06 15:41:39 - __main__ - INFO - Finished: UsCarrier (random)
+2026-01-06 15:41:39 - __main__ - INFO - Progress: 9/10 tasks completed.
+2026-01-06 15:41:39 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=degree, Batch=1
+2026-01-06 15:41:39 - __main__ - DEBUG - Command: python main.py --dataset UsCarrier --attack degree --batch_size 1
+2026-01-06 15:44:14 - __main__ - INFO - Finished: UsCarrier (degree)
+2026-01-06 15:44:14 - __main__ - INFO - Progress: 10/10 tasks completed.
+2026-01-06 15:44:14 - __main__ - INFO - All simulations completed in 23.84 minutes.
+2026-01-13 02:35:30 - root - INFO - Logger initialized. Log file: logs\batch_run.log
+2026-01-13 02:35:30 - __main__ - INFO - Found 5 datasets: Chinanet, Cogentco, Colt, GtsCe, UsCarrier
+2026-01-13 02:35:30 - __main__ - INFO - Starting batch run: 10 tasks
+2026-01-13 02:35:30 - __main__ - INFO -   Datasets: 5
+2026-01-13 02:35:30 - __main__ - INFO -   Attack modes: random, degree
+2026-01-13 02:35:30 - __main__ - INFO -   Batch size: 20
+2026-01-13 02:35:30 - __main__ - INFO -   Controller rate: 0.1
+2026-01-13 02:35:30 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=random, Batch=20
+2026-01-13 02:37:04 - __main__ - INFO - Finished: Chinanet (random)
+2026-01-13 02:37:04 - __main__ - INFO - Progress: 1/10 completed, 0 skipped, 0 failed
+2026-01-13 02:37:04 - __main__ - INFO - Starting simulation: Dataset=Chinanet, Attack=degree, Batch=20
+2026-01-13 02:38:38 - __main__ - INFO - Finished: Chinanet (degree)
+2026-01-13 02:38:38 - __main__ - INFO - Progress: 2/10 completed, 0 skipped, 0 failed
+2026-01-13 02:38:38 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=random, Batch=20
+2026-01-13 08:52:16 - __main__ - INFO - Finished: Cogentco (random)
+2026-01-13 08:52:16 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 0 failed
+2026-01-13 08:52:16 - __main__ - INFO - Starting simulation: Dataset=Cogentco, Attack=degree, Batch=20
+2026-01-13 08:53:33 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:33 - __main__ - WARNING - Task failed: Cogentco (degree)
+2026-01-13 08:53:33 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 1 failed
+2026-01-13 08:53:33 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=random, Batch=20
+2026-01-13 08:53:34 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:34 - __main__ - WARNING - Task failed: Colt (random)
+2026-01-13 08:53:34 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 2 failed
+2026-01-13 08:53:34 - __main__ - INFO - Starting simulation: Dataset=Colt, Attack=degree, Batch=20
+2026-01-13 08:53:34 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:34 - __main__ - WARNING - Task failed: Colt (degree)
+2026-01-13 08:53:34 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 3 failed
+2026-01-13 08:53:34 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=random, Batch=20
+2026-01-13 08:53:41 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:41 - __main__ - WARNING - Task failed: GtsCe (random)
+2026-01-13 08:53:41 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 4 failed
+2026-01-13 08:53:41 - __main__ - INFO - Starting simulation: Dataset=GtsCe, Attack=degree, Batch=20
+2026-01-13 08:53:42 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:42 - __main__ - WARNING - Task failed: GtsCe (degree)
+2026-01-13 08:53:42 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 5 failed
+2026-01-13 08:53:42 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=random, Batch=20
+2026-01-13 08:53:42 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:42 - __main__ - WARNING - Task failed: UsCarrier (random)
+2026-01-13 08:53:42 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 6 failed
+2026-01-13 08:53:42 - __main__ - INFO - Starting simulation: Dataset=UsCarrier, Attack=degree, Batch=20
+2026-01-13 08:53:42 - __main__ - WARNING - 
+Interrupted by user.
+2026-01-13 08:53:42 - __main__ - WARNING - Task failed: UsCarrier (degree)
+2026-01-13 08:53:42 - __main__ - INFO - Progress: 3/10 completed, 0 skipped, 7 failed
+2026-01-13 08:53:42 - __main__ - INFO - ============================================================
+2026-01-13 08:53:42 - __main__ - INFO - Batch run completed!
+2026-01-13 08:53:42 - __main__ - INFO -   Total time: 378.21 minutes (22692.59 seconds)
+2026-01-13 08:53:42 - __main__ - INFO -   Completed: 3/10
+2026-01-13 08:53:42 - __main__ - INFO -   Skipped: 0
+2026-01-13 08:53:42 - __main__ - INFO -   Failed: 7
+2026-01-13 08:53:42 - __main__ - INFO - ============================================================

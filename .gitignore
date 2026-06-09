@@ -1,0 +1,28 @@
+# 排除 results 文件夹
+results/
+
+# 排除大型数据集和模型权重
+dataset/all/syn/*.gml
+dataset/all/real/*.gml
+src/train/v1/checkpoints/*.pth
+
+# Python 缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db

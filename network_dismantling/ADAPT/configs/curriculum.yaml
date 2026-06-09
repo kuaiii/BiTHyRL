@@ -1,0 +1,67 @@
+# ADAPT Curriculum Learning Configuration
+# Quality-focused: longer phases, full validation, frequent eval.
+
+# Environment
+rolling_mode: true
+k_hop: 2
+reward_metric: "gcc"
+dynamics: "static"
+max_nodes: 1000
+
+# Model
+node_feat_dim: 10
+hidden_dim: 64
+gat_layers: 2
+gat_heads: 4
+gru_hidden: 128
+action_dim: 32
+dropout: 0.1
+
+# Training
+lr: 0.0003
+gamma: 0.99
+gae_lambda: 0.95
+p_clip: 0.2
+entropy_coef: 0.01
+value_coef: 0.5
+max_grad_norm: 0.5
+
+update_steps: 512
+batch_size: 64
+update_epochs: 4
+
+attack_budget_ratio: 1.0
+
+# Multi-objective step reward weights
+reward_weights:
+  gcc: 0.6
+  slcc: 0.3
+  fragment: 0.1
+
+# Episode-level terminal reward weights (AUC + remove_num)
+terminal_reward_weights:
+  auc: 0.5
+  remove_num: 0.5
+  penalty_fail: 1.0
+
+# Curriculum schedule: decreasing k-hop (quality-focused)
+# Phase 0: full visibility, learn global dismantling
+# Phase 1-2: large/medium local, adapt to limited info
+# Phase 3: target k=2, main optimization phase
+# Phase 4: extreme local, refine local-structure recognition
+curriculum:
+  - {k_hop: 20, epochs: 100, lr: 0.0003, entropy_coef: 0.02}
+  - {k_hop: 5,  epochs: 200, lr: 0.0003, entropy_coef: 0.01}
+  - {k_hop: 3,  epochs: 200, lr: 0.0002, entropy_coef: 0.01}
+  - {k_hop: 2,  epochs: 300, lr: 0.0001, entropy_coef: 0.005}
+  - {k_hop: 1,  epochs: 200, lr: 0.0001, entropy_coef: 0.005}
+
+# Evaluation during training (frequent for best checkpoint selection)
+eval_interval: 5
+n_eval_graphs: 20
+
+# Use full validation set (syn + real) for robust model selection
+eval_only_syn: false
+
+# Checkpointing
+save_dir: "network_dismantling/ADAPT/checkpoints"

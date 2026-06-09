@@ -1,0 +1,54 @@
+[GPU] PyTorch CUDA 可用: NVIDIA GeForce RTX 3060 (12.0 GB)
+============================================================
+BiT-HyRL Adversarial Multi-Attack Training
+============================================================
+Mode: adversarial
+Aggregation: min
+Sample methods: 3
+Attack ratio: 0.1
+Epochs: 30
+Learning rate: 0.0003
+GAT layers: 5
+Hidden channels: 128
+Attention heads: 8
+Model save path: H:\项目\02-论文\03-论文计划\02-攥写中\10-RESS\BiT-HyRL\src\train\v1\checkpoints\gnn_ppo_agent_adversarial.pth
+============================================================
+Loading graphs:   0%|                                    | 0/40 [00:00<?, ?it/s]Loading graphs:   2%|▋                           | 1/40 [00:00<00:04,  7.96it/s]Loading graphs:   8%|██                          | 3/40 [00:00<00:03, 10.87it/s]Loading graphs:  12%|███▌                        | 5/40 [00:00<00:02, 12.20it/s]Loading graphs:  22%|██████▎                     | 9/40 [00:00<00:01, 18.55it/s]Loading graphs:  30%|████████                   | 12/40 [00:00<00:01, 14.95it/s]Loading graphs:  35%|█████████▍                 | 14/40 [00:00<00:01, 14.43it/s]Loading graphs:  40%|██████████▊                | 16/40 [00:01<00:01, 14.91it/s]Loading graphs:  45%|████████████▏              | 18/40 [00:01<00:01, 12.87it/s]Loading graphs:  52%|██████████████▏            | 21/40 [00:01<00:01, 12.92it/s]Loading graphs:  57%|███████████████▌           | 23/40 [00:01<00:01, 13.76it/s]Loading graphs:  62%|████████████████▉          | 25/40 [00:01<00:01, 13.95it/s]Loading graphs:  70%|██████████████████▉        | 28/40 [00:01<00:00, 15.35it/s]Loading graphs:  75%|████████████████████▎      | 30/40 [00:02<00:00, 15.23it/s]Loading graphs:  80%|█████████████████████▌     | 32/40 [00:02<00:00, 13.56it/s]Loading graphs:  88%|███████████████████████▋   | 35/40 [00:02<00:00, 14.26it/s]Loading graphs:  92%|████████████████████████▉  | 37/40 [00:02<00:00,  9.65it/s]Loading graphs:  98%|██████████████████████████▎| 39/40 [00:03<00:00,  9.06it/s]Loading graphs: 100%|███████████████████████████| 40/40 [00:03<00:00, 12.57it/s]
+加载完成: 24 个有效图
+  跳过: 16 个
+
+开始训练，共 24 个图...
+
+============================================================
+BiT-HyRL Deep GAT+PPO Training
+============================================================
+  Mode: adversarial
+  Epochs: 30
+  Graphs: 24
+  Learning Rate: 0.0003
+  Node2Vec Embed Dim: 128
+  Hidden Channels: 128
+  Attention Heads: 8
+  GAT Layers: 5
+  Controller Ratio: 0.1
+  Device: cuda
+============================================================
+
+Model parameters: 271,876
+Architecture: 5-layer GAT, 8 heads, 128 hidden dim
+Input: 128D Node2Vec embeddings
+Training Deep GAT+PPO:   0%|          | 0/30 [00:00<?, ?it/s]FINDER_ND not available: No module named 'tensorflow'
+Training Deep GAT+PPO:   0%|          | 0/30 [03:41<?, ?it/s, reward=0.4309, best=0.4309, policy_loss=0.0021]Training Deep GAT+PPO:   3%|▎         | 1/30 [03:41<1:46:49, 221.03s/it, reward=0.4309, best=0.4309, policy_loss=0.0021]Training Deep GAT+PPO:   3%|▎         | 1/30 [05:50<1:46:49, 221.03s/it, reward=0.4745, best=0.4745, policy_loss=-0.0077]Training Deep GAT+PPO:   7%|▋         | 2/30 [05:50<1:18:01, 167.18s/it, reward=0.4745, best=0.4745, policy_loss=-0.0077]Training Deep GAT+PPO:   7%|▋         | 2/30 [10:04<1:18:01, 167.18s/it, reward=0.4457, best=0.4745, policy_loss=-0.0187]Training Deep GAT+PPO:  10%|█         | 3/30 [10:04<1:32:58, 206.61s/it, reward=0.4457, best=0.4745, policy_loss=-0.0187]Training Deep GAT+PPO:  10%|█         | 3/30 [13:00<1:32:58, 206.61s/it, reward=0.4940, best=0.4940, policy_loss=-0.0058]Training Deep GAT+PPO:  13%|█▎        | 4/30 [13:00<1:24:17, 194.54s/it, reward=0.4940, best=0.4940, policy_loss=-0.0058]Training Deep GAT+PPO:  13%|█▎        | 4/30 [16:12<1:24:17, 194.54s/it, reward=0.4701, best=0.4940, policy_loss=-0.0175]Training Deep GAT+PPO:  17%|█▋        | 5/30 [16:12<1:20:44, 193.77s/it, reward=0.4701, best=0.4940, policy_loss=-0.0175]Training Deep GAT+PPO:  17%|█▋        | 5/30 [20:15<1:20:44, 193.77s/it, reward=0.3720, best=0.4940, policy_loss=-0.0519]Training Deep GAT+PPO:  20%|██        | 6/30 [20:15<1:24:08, 210.37s/it, reward=0.3720, best=0.4940, policy_loss=-0.0519]Training Deep GAT+PPO:  20%|██        | 6/30 [23:37<1:24:08, 210.37s/it, reward=0.4696, best=0.4940, policy_loss=-0.0040]Training Deep GAT+PPO:  23%|██▎       | 7/30 [23:37<1:19:42, 207.92s/it, reward=0.4696, best=0.4940, policy_loss=-0.0040]Training Deep GAT+PPO:  23%|██▎       | 7/30 [26:15<1:19:42, 207.92s/it, reward=0.4696, best=0.4940, policy_loss=-0.0223]Training Deep GAT+PPO:  27%|██▋       | 8/30 [26:15<1:10:24, 192.04s/it, reward=0.4696, best=0.4940, policy_loss=-0.0223]Training Deep GAT+PPO:  27%|██▋       | 8/30 [29:00<1:10:24, 192.04s/it, reward=0.4358, best=0.4940, policy_loss=-0.0167]Training Deep GAT+PPO:  30%|███       | 9/30 [29:00<1:04:13, 183.50s/it, reward=0.4358, best=0.4940, policy_loss=-0.0167]Training Deep GAT+PPO:  30%|███       | 9/30 [31:42<1:04:13, 183.50s/it, reward=0.4534, best=0.4940, policy_loss=-0.0141]Training Deep GAT+PPO:  33%|███▎      | 10/30 [31:42<58:57, 176.88s/it, reward=0.4534, best=0.4940, policy_loss=-0.0141] Training Deep GAT+PPO:  33%|███▎      | 10/30 [34:46<58:57, 176.88s/it, reward=0.4550, best=0.4940, policy_loss=0.0125] Training Deep GAT+PPO:  37%|███▋      | 11/30 [34:46<56:39, 178.91s/it, reward=0.4550, best=0.4940, policy_loss=0.0125]Training Deep GAT+PPO:  37%|███▋      | 11/30 [38:14<56:39, 178.91s/it, reward=0.4053, best=0.4940, policy_loss=-0.0094]Training Deep GAT+PPO:  40%|████      | 12/30 [38:14<56:20, 187.80s/it, reward=0.4053, best=0.4940, policy_loss=-0.0094]Training Deep GAT+PPO:  40%|████      | 12/30 [40:47<56:20, 187.80s/it, reward=0.4509, best=0.4940, policy_loss=-0.0069]Training Deep GAT+PPO:  43%|████▎     | 13/30 [40:47<50:13, 177.25s/it, reward=0.4509, best=0.4940, policy_loss=-0.0069]Training Deep GAT+PPO:  43%|████▎     | 13/30 [43:25<50:13, 177.25s/it, reward=0.4167, best=0.4940, policy_loss=-0.0008]Training Deep GAT+PPO:  47%|████▋     | 14/30 [43:25<45:44, 171.51s/it, reward=0.4167, best=0.4940, policy_loss=-0.0008]Training Deep GAT+PPO:  47%|████▋     | 14/30 [46:53<45:44, 171.51s/it, reward=0.4112, best=0.4940, policy_loss=-0.0435]Training Deep GAT+PPO:  50%|█████     | 15/30 [46:53<45:35, 182.37s/it, reward=0.4112, best=0.4940, policy_loss=-0.0435]Training Deep GAT+PPO:  50%|█████     | 15/30 [49:11<45:35, 182.37s/it, reward=0.5057, best=0.5057, policy_loss=-0.0138]Training Deep GAT+PPO:  53%|█████▎    | 16/30 [49:11<39:25, 168.97s/it, reward=0.5057, best=0.5057, policy_loss=-0.0138]Training Deep GAT+PPO:  53%|█████▎    | 16/30 [51:17<39:25, 168.97s/it, reward=0.4259, best=0.5057, policy_loss=-0.0442]Training Deep GAT+PPO:  57%|█████▋    | 17/30 [51:17<33:52, 156.34s/it, reward=0.4259, best=0.5057, policy_loss=-0.0442]Training Deep GAT+PPO:  57%|█████▋    | 17/30 [54:00<33:52, 156.34s/it, reward=0.4487, best=0.5057, policy_loss=-0.0234]Training Deep GAT+PPO:  60%|██████    | 18/30 [54:00<31:39, 158.28s/it, reward=0.4487, best=0.5057, policy_loss=-0.0234]Training Deep GAT+PPO:  60%|██████    | 18/30 [56:18<31:39, 158.28s/it, reward=0.4905, best=0.5057, policy_loss=-0.0466]Training Deep GAT+PPO:  63%|██████▎   | 19/30 [56:18<27:52, 152.05s/it, reward=0.4905, best=0.5057, policy_loss=-0.0466]Training Deep GAT+PPO:  63%|██████▎   | 19/30 [58:40<27:52, 152.05s/it, reward=0.4111, best=0.5057, policy_loss=-0.0154]Training Deep GAT+PPO:  67%|██████▋   | 20/30 [58:40<24:52, 149.21s/it, reward=0.4111, best=0.5057, policy_loss=-0.0154]Training Deep GAT+PPO:  67%|██████▋   | 20/30 [1:00:32<24:52, 149.21s/it, reward=0.4384, best=0.5057, policy_loss=-0.0013]Training Deep GAT+PPO:  70%|███████   | 21/30 [1:00:32<20:40, 137.87s/it, reward=0.4384, best=0.5057, policy_loss=-0.0013]Training Deep GAT+PPO:  70%|███████   | 21/30 [1:03:12<20:40, 137.87s/it, reward=0.4569, best=0.5057, policy_loss=-0.0147]Training Deep GAT+PPO:  73%|███████▎  | 22/30 [1:03:12<19:15, 144.47s/it, reward=0.4569, best=0.5057, policy_loss=-0.0147]Training Deep GAT+PPO:  73%|███████▎  | 22/30 [1:05:30<19:15, 144.47s/it, reward=0.4151, best=0.5057, policy_loss=0.0255] Training Deep GAT+PPO:  77%|███████▋  | 23/30 [1:05:30<16:39, 142.73s/it, reward=0.4151, best=0.5057, policy_loss=0.0255]Training Deep GAT+PPO:  77%|███████▋  | 23/30 [1:07:53<16:39, 142.73s/it, reward=0.4818, best=0.5057, policy_loss=-0.0072]Training Deep GAT+PPO:  80%|████████  | 24/30 [1:07:53<14:16, 142.77s/it, reward=0.4818, best=0.5057, policy_loss=-0.0072]Training Deep GAT+PPO:  80%|████████  | 24/30 [1:11:08<14:16, 142.77s/it, reward=0.4213, best=0.5057, policy_loss=-0.0049]Training Deep GAT+PPO:  83%|████████▎ | 25/30 [1:11:08<13:12, 158.48s/it, reward=0.4213, best=0.5057, policy_loss=-0.0049]Training Deep GAT+PPO:  83%|████████▎ | 25/30 [1:13:28<13:12, 158.48s/it, reward=0.4546, best=0.5057, policy_loss=-0.0112]Training Deep GAT+PPO:  87%|████████▋ | 26/30 [1:13:28<10:10, 152.70s/it, reward=0.4546, best=0.5057, policy_loss=-0.0112]Training Deep GAT+PPO:  87%|████████▋ | 26/30 [1:15:43<10:10, 152.70s/it, reward=0.4536, best=0.5057, policy_loss=-0.0077]Training Deep GAT+PPO:  90%|█████████ | 27/30 [1:15:43<07:22, 147.64s/it, reward=0.4536, best=0.5057, policy_loss=-0.0077]Training Deep GAT+PPO:  90%|█████████ | 27/30 [1:18:31<07:22, 147.64s/it, reward=0.4305, best=0.5057, policy_loss=-0.0067]Training Deep GAT+PPO:  93%|█████████▎| 28/30 [1:18:31<05:07, 153.60s/it, reward=0.4305, best=0.5057, policy_loss=-0.0067]Training Deep GAT+PPO:  93%|█████████▎| 28/30 [1:21:31<05:07, 153.60s/it, reward=0.4452, best=0.5057, policy_loss=-0.0189]Training Deep GAT+PPO:  97%|█████████▋| 29/30 [1:21:31<02:41, 161.44s/it, reward=0.4452, best=0.5057, policy_loss=-0.0189]Training Deep GAT+PPO:  97%|█████████▋| 29/30 [1:24:34<02:41, 161.44s/it, reward=0.4756, best=0.5057, policy_loss=-0.0111]Training Deep GAT+PPO: 100%|██████████| 30/30 [1:24:34<00:00, 167.92s/it, reward=0.4756, best=0.5057, policy_loss=-0.0111]Training Deep GAT+PPO: 100%|██████████| 30/30 [1:24:34<00:00, 169.14s/it, reward=0.4756, best=0.5057, policy_loss=-0.0111]
+
+Model saved to H:\项目\02-论文\03-论文计划\02-攥写中\10-RESS\BiT-HyRL\src\train\v1\checkpoints\gnn_ppo_agent_adversarial.pth
+Best reward: 0.5057
+
+============================================================
+对抗式训练完成
+============================================================
+训练耗时: 84.58 分钟
+最佳奖励: 0.5057
+最终奖励: 0.4756
+模型保存: H:\项目\02-论文\03-论文计划\02-攥写中\10-RESS\BiT-HyRL\src\train\v1\checkpoints\gnn_ppo_agent_adversarial.pth
+============================================================
+训练历史已保存: H:\项目\02-论文\03-论文计划\02-攥写中\10-RESS\BiT-HyRL\src\train\v1\checkpoints\gnn_ppo_agent_adversarial_training_history.csv

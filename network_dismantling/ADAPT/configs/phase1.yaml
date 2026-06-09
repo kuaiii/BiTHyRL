@@ -1,0 +1,41 @@
+# Phase 1: Hemostasis config
+# Reduce instability by increasing data per epoch and softening PPO updates
+
+# Environment
+k_hop: 2
+reward_metric: "gcc"
+dynamics: "static"
+max_nodes: 1000
+
+# Model
+node_feat_dim: 7
+hidden_dim: 64
+gat_layers: 2
+gat_heads: 4
+gru_hidden: 128
+action_dim: 32
+dropout: 0.1
+
+# Training
+lr: 0.0001              # Reduced from 3e-4 for gentler updates
+gamma: 0.99
+gae_lambda: 0.95
+p_clip: 0.1             # Tighter clip for conservative policy updates
+entropy_coef: 0.03      # Increased exploration to prevent premature convergence
+value_coef: 1.0         # Strengthen critic learning
+max_grad_norm: 0.5
+
+update_steps: 8192      # 4x more data per epoch to reduce variance
+batch_size: 64
+update_epochs: 4
+
+n_training_graphs: 1000
+n_nodes_range: [20, 120]
+attack_budget_ratio: 0.2
+
+# Evaluation during training
+eval_interval: 10
+n_eval_graphs: 20
+
+# Checkpointing
+save_dir: "checkpoints"

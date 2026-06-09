@@ -1,0 +1,48 @@
+# ARCH production training configuration
+# Covers full sparsity spectrum and 0-1000 nodes
+
+# Environment
+k_hop: 2
+reward_metric: "gcc"
+dynamics: "static"
+max_nodes: 1000
+
+# Model
+node_feat_dim: 10
+hidden_dim: 64
+gat_layers: 2
+gat_heads: 4
+gru_hidden: 128
+action_dim: 32
+dropout: 0.1
+
+# Training
+lr: 0.0003
+gamma: 0.99
+gae_lambda: 0.95
+p_clip: 0.2
+entropy_coef: 0.01
+value_coef: 0.5
+max_grad_norm: 0.5
+
+update_steps: 512
+batch_size: 64
+update_epochs: 4
+
+# Diverse training graphs covering full spectrum
+n_training_graphs: 2000
+n_nodes_range: [20, 1000]
+attack_budget_ratio: 1.0
+
+# Multi-objective reward weights (gcc, slcc, fragment)
+reward_weights:
+  gcc: 0.6
+  slcc: 0.3
+  fragment: 0.1
+
+# Evaluation during training
+eval_interval: 5
+n_eval_graphs: 20
+
+# Checkpointing
+save_dir: "network_dismantling/ARCH/checkpoints"
