@@ -1033,6 +1033,76 @@ def create_bimodal_adaptive_fast(G, seed=None, verbose=False):
     return best_G
 
 
+def _reinforce_low_layer_backbone(G, num_hubs, target_m, seed=None):
+    """
+    给低度层增加保底环状骨架，避免 hub 被移除后低度节点立即碎裂。
+
+    该操作通过“加一条低低边、删一条 hub 相关冗余边”的方式保持边数不变。
+    """
+    if G is None or G.number_of_nodes() < 4 or num_hubs >= G.number_of_nodes() - 1:
+        return G
+
+    rng = random.Random(seed)
+    hubs = set(sorted(G.nodes(), key=lambda v: G.degree(v), reverse=True)[:num_hubs])
+    low_nodes = [v for v in G.nodes() if v not in hubs]
+    if len(low_nodes) < 3:
+        return G
+
+    rng.shuffle(low_nodes)
+    protected_edges = set()
+
+    def norm_edge(u, v):
+        return (u, v) if u <= v else (v, u)
+
+    backbone_edges = [
+        (low_nodes[i], low_nodes[(i + 1) % len(low_nodes)])
+        for i in range(len(low_nodes))
+    ]
+    max_added_backbone = max(1, min(len(backbone_edges), target_m // 4))
+    added_backbone = 0
+
+    for u, v in backbone_edges:
+        if added_backbone >= max_added_backbone:
+            break
+        protected_edges.add(norm_edge(u, v))
+        if G.has_edge(u, v):
+            continue
+
+        G.add_edge(u, v)
+        if G.number_of_edges() <= target_m:
+            continue
+
+        edges = list(G.edges())
+        rng.shuffle(edges)
+        # 优先删 hub-low / hub-hub 边，把边预算转移给低度层骨架。
+        edges.sort(
+            key=lambda e: (
+                0 if (e[0] in hubs or e[1] in hubs) else 1,
+                -(G.degree(e[0]) + G.degree(e[1])),
+            )
+        )
+
+        removed = False
+        for a, b in edges:
+            if norm_edge(a, b) in protected_edges:
+                continue
+            G.remove_edge(a, b)
+            if nx.is_connected(G):
+                removed = True
+                break
+            G.add_edge(a, b)
+
+        if not removed:
+            # 找不到安全删边时撤销本次低低边，保证约束优先。
+            G.remove_edge(u, v)
+            protected_edges.discard(norm_edge(u, v))
+        else:
+            added_backbone += 1
+
+    _adjust_edge_count(G, target_m, seed=seed)
+    return G
+
+
 def create_bimodal_with_num_hubs(n, m, num_hubs, seed=42):
     """
     构造指定 hub 数量的双峰网络（固定 N、M）。
@@ -1111,6 +1181,7 @@ def create_bimodal_with_num_hubs(n, m, num_hubs, seed=42):
     if not nx.is_connected(G):
         _ensure_connectivity(G, seed=seed)
     _adjust_edge_count(G, m, seed=seed)
+    _reinforce_low_layer_backbone(G, num_hubs, m, seed=seed)
     if G.number_of_nodes() != n or G.number_of_edges() != m or not nx.is_connected(G):
         return None
     return G

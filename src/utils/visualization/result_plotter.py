@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib.pyplot import MultipleLocator

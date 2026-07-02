@@ -678,7 +678,98 @@ def hybrid_ci_select(G, total_controllers_budget, use_ci=True):
     return out
 
 
-def hybrid_gnn_select(G, total_controllers_budget, model_path=None, use_ci=False, gnn_ratio=1.0, prefer_curriculum=True):
+def _attack_risk_nodes(G, top_ratio=0.1):
+    """返回 degree/betweenness 定向攻击下的高风险节点集合。"""
+    n = G.number_of_nodes()
+    if n == 0:
+        return set()
+
+    top_k = max(1, int(np.ceil(n * top_ratio)))
+    by_degree = sorted(G.nodes(), key=lambda v: G.degree(v), reverse=True)[:top_k]
+    try:
+        betweenness = nx.betweenness_centrality(G)
+    except Exception:
+        betweenness = {v: 0.0 for v in G.nodes()}
+    by_betweenness = sorted(G.nodes(), key=lambda v: betweenness.get(v, 0.0), reverse=True)[:top_k]
+    return set(by_degree) | set(by_betweenness)
+
+
+def _controller_candidate_scores(G, selected):
+    """为 attack-aware 替换候选打分：兼顾覆盖距离和 CI，避开高风险节点。"""
+    candidates = [v for v in G.nodes() if v not in selected]
+    if not candidates:
+        return {}
+
+    ci_raw = {v: calculate_collective_influence(G, v, radius=2) for v in candidates}
+    ci_max = max(ci_raw.values()) if ci_raw else 1.0
+    ci_max = ci_max if ci_max > 0 else 1.0
+
+    distance_score = {v: 1.0 for v in candidates}
+    if selected:
+        for v in candidates:
+            min_dist = None
+            for c in selected:
+                try:
+                    dist = nx.shortest_path_length(G, v, c)
+                except nx.NetworkXNoPath:
+                    dist = G.number_of_nodes()
+                min_dist = dist if min_dist is None else min(min_dist, dist)
+            distance_score[v] = min(1.0, (min_dist or 0) / max(1, G.number_of_nodes() ** 0.5))
+
+    degree_max = max((d for _, d in G.degree()), default=1)
+    degree_max = degree_max if degree_max > 0 else 1
+    return {
+        v: 0.45 * distance_score[v]
+        + 0.40 * (ci_raw[v] / ci_max)
+        + 0.15 * (G.degree(v) / degree_max)
+        for v in candidates
+    }
+
+
+def attack_aware_refine_centers(G, centers, total_controllers_budget, max_high_risk_ratio=0.35):
+    """
+    推理阶段控制器后处理：保留 GNN/CI 的覆盖意图，但限制控制器过度落在高风险节点。
+
+    该步骤不完全排斥 hub；少量 hub 控制器仍有利于覆盖，但避免在定向攻击中一起早死。
+    """
+    if not centers or G.number_of_nodes() == 0:
+        return centers
+
+    budget = min(total_controllers_budget, G.number_of_nodes())
+    unique_centers = []
+    for c in centers:
+        if c in G and c not in unique_centers:
+            unique_centers.append(c)
+    if len(unique_centers) < budget:
+        extras = ci_select_subset(G, list(G.nodes()), budget - len(unique_centers), unique_centers, radius=2)
+        unique_centers.extend(extras)
+    unique_centers = unique_centers[:budget]
+
+    high_risk = _attack_risk_nodes(G, top_ratio=0.1)
+    max_high_risk = max(1, int(np.floor(budget * max_high_risk_ratio)))
+    high_risk_centers = [c for c in unique_centers if c in high_risk]
+    if len(high_risk_centers) <= max_high_risk:
+        return unique_centers
+
+    keep = list(unique_centers)
+    replace_count = len(high_risk_centers) - max_high_risk
+    # 优先替换度更高的风险控制器，保留少量 hub 作为覆盖锚点。
+    replace_targets = sorted(high_risk_centers, key=lambda v: G.degree(v), reverse=True)[:replace_count]
+    keep = [c for c in keep if c not in replace_targets]
+
+    scores = _controller_candidate_scores(G, set(keep))
+    safe_candidates = [v for v in scores if v not in high_risk and v not in keep]
+    safe_candidates.sort(key=lambda v: scores[v], reverse=True)
+    keep.extend(safe_candidates[:replace_count])
+
+    if len(keep) < budget:
+        fallback = [v for v in sorted(scores, key=scores.get, reverse=True) if v not in keep]
+        keep.extend(fallback[: budget - len(keep)])
+
+    return keep[:budget]
+
+
+def hybrid_gnn_select(G, total_controllers_budget, model_path=None, use_ci=False, gnn_ratio=1.0, prefer_curriculum=True, attack_aware=True):
     """
     使用 GNN 模型选择控制器（自动适配模型类型）
     
@@ -692,6 +783,7 @@ def hybrid_gnn_select(G, total_controllers_budget, model_path=None, use_ci=False
         use_ci: 已废弃，保留参数兼容性
         gnn_ratio: 已废弃，全部由 GNN 选择
         prefer_curriculum: 是否优先使用课程学习模型
+        attack_aware: 是否启用定向攻击风险感知后处理
         
     Returns:
         centers: 选择的控制器列表
@@ -702,15 +794,25 @@ def hybrid_gnn_select(G, total_controllers_budget, model_path=None, use_ci=False
     if gnn_model is None:
         # GNN 模型不可用时，使用 CI 算法作为降级方案
         logger.warning("GNN 模型不可用，使用 CI 算法选择控制器")
-        return hybrid_ci_select(G, total_controllers_budget, use_ci=True)
+        centers = hybrid_ci_select(G, total_controllers_budget, use_ci=True)
+        return attack_aware_refine_centers(G, centers, total_controllers_budget) if attack_aware else centers
+
+    embed_dim = 128
+    if isinstance(checkpoint, dict):
+        embed_dim = checkpoint.get('in_channels', embed_dim)
     
     # 处理单连通图（常见情况，优化性能）
     if nx.is_connected(G):
-        return gnn_predict(
-            G, total_controllers_budget, 
-            model=gnn_model, model_type=model_type, 
-            deterministic=True
-        )
+        try:
+            centers = gnn_predict(
+                G, total_controllers_budget,
+                model=gnn_model, model_type=model_type,
+                deterministic=True, embed_dim=embed_dim
+            )
+        except Exception as e:
+            logger.warning(f"GNN 推理失败，降级为 CI 选择: {e}")
+            centers = hybrid_ci_select(G, total_controllers_budget, use_ci=True)
+        return attack_aware_refine_centers(G, centers, total_controllers_budget) if attack_aware else centers
     
     # 按连通分量分配控制器
     comps = [list(c) for c in nx.connected_components(G) if len(c) > 0]
@@ -759,8 +861,15 @@ def hybrid_gnn_select(G, total_controllers_budget, model_path=None, use_ci=False
         
         sub = G.subgraph(nds).copy()
         
-        # 使用 GNN 选择控制器
-        gnn_selected = gnn_predict(sub, k, model=gnn_model, model_type=model_type, deterministic=True)
+        # 使用 GNN 选择控制器；失败时按分量降级为 CI。
+        try:
+            gnn_selected = gnn_predict(
+                sub, k, model=gnn_model, model_type=model_type,
+                deterministic=True, embed_dim=embed_dim
+            )
+        except Exception as e:
+            logger.warning(f"分量 GNN 推理失败，降级为 CI 选择: {e}")
+            gnn_selected = ci_select_subset(sub, nds, k, [], radius=2)
         out.extend(gnn_selected)
     
-    return out
+    return attack_aware_refine_centers(G, out, total_controllers_budget) if attack_aware else out

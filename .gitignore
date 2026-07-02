@@ -10,6 +10,7 @@ logs/
 results/
 *.log
 dataset/all/
+dataset/embedding_cache/
 
 src/train/v1/checkpoints/*.pth
 src/train/v1/checkpoints/*.pt
