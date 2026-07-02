@@ -12,7 +12,7 @@ from typing import Optional
 # 项目根目录
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = PROJECT_ROOT / "results"
-TESTDATA_DIR = PROJECT_ROOT / "data" / "testdata"
+TESTDATA_DIR = PROJECT_ROOT / "dataset" / "testdata"
 OUTPUT_DIR = PROJECT_ROOT / "results" / "metrics_tables"
 
 # 数据集名称（与 testdata 中 .gml 文件名一致，不含扩展名）

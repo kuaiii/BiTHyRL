@@ -1,0 +1,222 @@
+Git 状态
+当前目录 [v2](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2) 不是一个 git 仓库。我实际执行了 git branch --show-current，返回的是 fatal: not a git repository；并且向上逐层检查后也没有发现 .git。所以这一步我现在没法帮你“从 main 切到新分支”。
+如果你希望我继续处理这件事，有两种最直接的方式：
+告诉我真正的仓库根目录，我去那里切分支。
+你确认要在这个目录先 git init，我再帮你建分支。
+这次我没有修改任何代码。
+项目核心架构
+这个项目本质上是一个“SDN 拓扑韧性分析 + 拓扑重构 + 控制器部署 + 攻击仿真 + 指标评估”的实验框架，核心聚焦在 BiT-HyRL 算法，同时保留多种基线方法用于对比。
+它有两个主入口：
+[main.py (line 858)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/main.py:858)
+负责“完整对比实验”。流程是：加载数据集 -> 构造多种候选拓扑 -> 调用控制器管理器跑不同部署策略 -> 执行攻击仿真 -> 计算 gcc/csa/cce/wcp 等指标 -> 保存 CSV 和图表到 results/。
+[main_bit_hyrl.py (line 424)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/main_bit_hyrl.py:424)
+负责“BiT-HyRL 独立训练/运行”。它提供 train、run、full 三个子命令，分别对应训练模型、执行双峰重构与控制器选择、以及训练加运行的一体化流程。
+从架构分层看，项目大致可以理解为 5 层：
+数据层
+dataset/ 里放 GML 网络数据和加载脚本，实验直接按数据集名加载图。
+
+算法层
+[src/bit_hyrl/__init__.py (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/bit_hyrl/__init__.py:1) 是 BiT-HyRL 核心包，包含：
+features.py：节点特征，含 Node2Vec
+model.py / gnn_model.py：MLP、GAT、Graph Transformer 策略网络
+reward.py：奖励函数、step-wise reward、课程学习奖励
+selection.py：控制器选择策略，含 CI / K-median / RL / GNN
+training.py / ppo_trainer.py：训练逻辑与 PPO
+reconstruct.py / topology.py：双峰拓扑重构
+
+统一接口层
+这是项目很关键的一层，分别把“拓扑构造 / 网络拆解 / 指标计算”都做成统一入口：
+[network_construction/unified_interface.py (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/network_construction/unified_interface.py:1)
+[network_dismantling/unified_interface.py (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/network_dismantling/unified_interface.py:1)
+[network_metrics/unified_interface.py (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/network_metrics/unified_interface.py:1)
+这意味着上层实验代码不需要关心具体算法实现，只需要按名字调用注册的算法或指标。
+
+实验编排层
+[src/controller/manager.py (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/controller/manager.py:1) 是实验 orchestration 核心。它把不同方法串起来做批量对比，包括 Baseline、GA+RCP、GA+RL、Onion+RL、ROMEN+RL、UNITY+RL、BiT-HyRL、FRED-ABL、QDLM、Unified-PPO 等。
+
+仿真与结果层  
+src/simulation/：攻击仿真
+src/utils/visualization/：绘图与可视化
+results/：实验输出
+scripts/：训练、评估、基准测试、画图等脚本化入口
+
+主要模块
+按职责归纳，主要模块是这些：
+src/bit_hyrl/
+项目的核心算法包，也是最重要的研究实现。
+src/unified_ppo/
+第二条学习型方法线，更像“统一 PPO”实验分支，做两阶段决策：拓扑微调 + 控制器选择。
+src/topology/
+图生成、重构和多种拓扑优化算法的适配层。
+src/controller/
+控制器部署、策略管理和实验协调。
+network_construction/
+多种拓扑构造/重构算法的注册与统一调用。
+network_dismantling/
+多种攻击/拆解策略的统一调用。
+network_metrics/
+统一指标接口，既支持结构指标，也支持 SDN 功能指标。
+dataset/
+数据集与加载脚本。
+scripts/
+面向实验的训练、评估、比较脚本集合。
+docs/
+方法说明、训练指南和架构文档。
+技术栈
+从 [requirements.txt (line 1)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/requirements.txt:1) 和代码实现看，技术栈主要是：
+Python
+networkx：图建模与图算法
+numpy、scipy、pandas：数值计算与结果处理
+matplotlib、seaborn：实验可视化
+torch：深度学习与强化学习
+torch-geometric：GNN / GAT 图神经网络
+scikit-learn：部分机器学习工具
+tqdm：训练和实验进度显示
+如果你愿意，我下一步可以继续做两件事之一：
+继续深入，把“每个核心模块之间的调用关系”画成一份更清晰的文字版调用链。
+先帮你定位真正的 git 仓库根目录，再切一个新分支。
+
+当前的rep是：kuaiii/BiTHyRL
+
+先评估下当前我么你的方法相对于其它方法的结果，主要需要优化我们的效果要能超过其它方法。先评估下方案，分析下问题在哪里，草拟出一个方法，基础方案还是双峰网络+RL+控制器部署方法。
+
+双峰网络是有理论依据的，但是当前表现不是很好：docs\双峰网络实验代码.docx
+
+
+
+评估结论
+我先按“现有结果 + 文档理论 + 当前入口代码”做了诊断，没有修改代码。
+当前 BiT-HyRL 的问题不是“双峰网络理论不成立”，而是当前实现更像落在了理论里明确警告的脆弱区：单超级枢纽 + 外围低度层不够自保 + 控制器部署没有真正由 RL 接管。它在合成 BA 网络上有时能赢，但在真实网络、尤其是 degree/wgcc 攻击下明显落后。
+从最新 area_values_* 口径看：
+真实网络上，BiT-HyRL 在 gcc/csa/cce 基本没有第一，平均排名约 7/9。
+Chinanet/degree：BiT-HyRL gcc area=0.0798，最佳 QDLM 0.2978。
+GtsCe/degree：BiT-HyRL 0.0572，最佳 Onion+RL 0.2497。
+Colt/degree：BiT-HyRL 0.0396，最佳 Onion+RL 0.1344。
+合成 BA 网络表现明显更好，说明当前方法有“合成图有效、真实图迁移弱”的问题。
+主要问题
+当前主流程在 [main.py (line 527)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/main.py:527) 用的是 create_bimodal_theoretical(node_num, edge_num)，而 [src/topology/reconstruction.py (line 1026)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/topology/reconstruction.py:1026) 里默认 num_hubs = 1。这会产生单超级枢纽结构，比如 Chinanet 出现 [31, 3, 3, ...]，随机攻击还行，但 degree 攻击一打 hub 就崩。
+
+你给的 Word 文档和 [docs/Bimodal.txt (line 96)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/docs/Bimodal.txt:96) 都强调了 k_min > 1，也就是低度节点层需要自己形成巨连通分支。当前实现虽然固定了 N/M，但没有把“低度层自保能力”作为实验主目标。
+
+当前“RL 控制器部署”很可能没有真正生效。[src/bit_hyrl/selection.py (line 680)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/bit_hyrl/selection.py:680) 会加载 GNN 模型，但我实际检查 _resolve_gnn_model_path(None) 返回 None，于是 [src/bit_hyrl/selection.py (line 703)](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/bit_hyrl/selection.py:703) 会退化为 CI 选择。现有 checkpoint 里有 gnn_ppo_agent_optimized.pth，但默认候选列表没包含它。
+
+奖励目标和最终评价不完全一致。最终评估看的是攻击全过程 AUC、collapse point、CSA/CCE/WCP，而部分旧奖励只看攻击后某个比例的保留效果，容易训练出“短期看起来好，完整曲线不好”的策略。
+
+草拟方案
+建议保留你的基础框架，但把方法从“单一理论双峰 + 控制器选择”升级成：
+Adaptive Robust Bimodal + Cascade-aware RL Controller Deployment
+核心流程：
+Input: 原始拓扑 G=(V,E), 固定成本 N=|V|, M=|E|, 控制器比例 rate
+
+1. 生成双峰候选族
+   对 hub_num / hub_ratio / k_min / k_max 做搜索
+   保证 N、M 不变
+   保证 k_min >= 2，真实稀疏网络优先考虑 k_min >= 3 或低度层 2-core 连通
+   限制单 hub 过强，避免 max_degree 过度集中
+
+2. 候选拓扑快速筛选
+   对每个候选拓扑计算：
+   R_random, R_degree, R_betweenness, collapse_point
+   edge_betweenness_max, algebraic_connectivity, low-layer GCC
+   选择 min/weighted AUC 最优的双峰拓扑
+
+3. RL 控制器部署
+   在选出的双峰拓扑上用 GNN/PPO 选择控制器
+   奖励直接对齐最终指标：
+   reward = min_attack_auc + CSA/CCE/WCP_auc + controller_survival + dispersion
+            - hub_overconcentration_penalty - edge_cost_penalty
+
+4. 可选拓扑微调
+   用 Unified PPO 做少量 add/remove edge 操作
+   仍保持固定 M 和双峰先验
+   目标是降低桥边依赖、提高低度层连通和代数连通度
+
+5. 输出
+   G_BiT*, controllers*
+   与 Baseline / GA+RCP / Onion+RL / UNITY+RL / QDLM 同口径比较
+优先级我建议这样排：
+先修“RL 没加载”的问题，让 BiT-HyRL 真正用上现有模型或显式传入模型路径。
+把 main.py 的 1-hub 理论双峰替换成“多候选自适应双峰”，先用 gcc degree + random + wgcc AUC 选拓扑。
+训练或微调一个 cascade-aware 控制器策略，奖励直接调用当前仿真里的级联失效逻辑。
+做消融实验：1-hub、docx k_min>=2、adaptive multi-hub、adaptive+CI、adaptive+GNN、adaptive+Unified-PPO。
+
+先将当前的代码文件都传到main分支；之后再创建新的分支，修改并维护版本；
+
+当前应该还存在另外一个版本的BiT-HyRL-Unified
+
+按照以上分析结果草拟一个优化修改算法的计划
+
+Git 已处理
+当前代码基线已推送到 kuaiii/BiTHyRL 的 main：
+main 最新提交：4f4eb8b Update BiT-HyRL code baseline
+已创建并推送新分支：feature/adaptive-bimodal-rl
+当前本地分支：feature/adaptive-bimodal-rl
+工作区状态：干净
+PR 地址：https://github.com/kuaiii/BiTHyRL/pull/new/feature/adaptive-bimodal-rl
+我也确认了当前 Unified 版本主要在 [src/unified_ppo](/H:/项目/02-论文/03-论文计划/02-攥写中/10-RESS/BiT-HyRL/v2/src/unified_ppo) 和相关 scripts/train_unified_ppo*.py 中，已经随这次基线进入 main。
+优化计划草案
+目标仍然保持：双峰网络 + RL + 控制器部署，但把当前单 hub 脆弱结构升级为“自适应鲁棒双峰 + 级联感知 RL 控制器”。
+修复 RL 实际未生效的问题
+当前默认模型解析找不到已有 gnn_ppo_agent_optimized.pth，会退化成 CI。先修改模型解析优先级，保证 BiT-HyRL 真正使用 GNN/RL 控制器选择，并在日志中明确输出使用的模型或降级原因。
+
+构造 Adaptive Bimodal 拓扑
+不再固定 num_hubs=1。在固定 N/M 下扫描 hub_num、k_min、k_max，约束 k_min >= 2，并增加低度层自保指标，例如 low-layer GCC、2-core ratio、algebraic connectivity、edge betweenness max。
+
+拓扑筛选目标改成多攻击 AUC
+候选双峰拓扑不只看随机攻击，改用 min/weighted(R_random, R_degree, R_betweenness, R_wgcc)。这样避免随机攻击好看、定向攻击一打 hub 就塌的问题。
+
+控制器部署奖励对齐最终评估
+RL 奖励直接使用当前仿真口径：攻击全过程 AUC、collapse point、CSA、CCE、WCP，并加入控制器分散、控制器存活、低度层覆盖。避免控制器集中在 hub 附近导致级联失效放大。
+
+融合 Unified PPO 版本
+把 src/unified_ppo 作为增强路线：Phase 1 做少量固定成本边重连，Phase 2 做控制器选择。拓扑微调必须保持双峰先验和边数不变，而不是完全自由改图。
+
+做消融实验
+对比组建议固定为：1-hub theoretical、docx k_min>=2、adaptive multi-hub、adaptive+CI、adaptive+GNN、adaptive+Unified-PPO。评价数据集覆盖 BA 和真实网络，重点看真实网络 degree/wgcc 下是否超过 Onion/UNITY/QDLM。
+
+验收标准
+第一阶段先要求真实网络 gcc area 不再垫底，并超过当前 BiT-HyRL 至少 30%。第二阶段目标是在 GtsCe/Chinanet/Colt/UsCarrier 的 degree 或 wgcc 上超过当前最佳基线中的多数。
+
+下一步建议先落地两件事：修复 GNN 模型加载路径，然后实现 create_bimodal_adaptive_robust 的候选搜索和评估接口。
+
+已编辑 .gitignore+18-0查看更改撤销审核
+
+
+开启下一步的优化
+
+已处理 5m 6s
+
+
+
+已开启并完成第一轮优化，代码提交并推送到了 feature/adaptive-bimodal-rl，没有改 main 分支。
+本轮完成：
+新增 adaptive_robust 双峰拓扑策略：不再固定单超级 hub，而是在固定节点/边数下搜索 hub 数量，用 degree / betweenness / random 等攻击 AUC 和低度层连通性综合筛选。
+main.py 新增参数：--bimodal-strategy、--bimodal-samples、--bimodal-attacks 等，默认启用新策略。
+修复控制器模型选择优先级：现在会优先找到已有的 gnn_ppo_agent_optimized.pth。
+验证结果：
+python -m py_compile ... 通过。
+Chinanet 快速筛选中，新策略选择 hub_num=8，degree 攻击 AUC 从单 hub 候选约 0.0935 提升到 0.1190。
+GNN resolver 已解析到 src/train/v1/checkpoints/gnn_ppo_agent_optimized.pth。
+提交：4754b40 Add adaptive robust bimodal topology strategy，已推送到远端优化分支。
+
+已编辑 3 个文件+211-3查看更改撤销审核
+
+src/bit_hyrl/selection.pysrc/bit_hyrl/selection.py+1-0
+src/topology/reconstruction.pysrc/topology/reconstruction.py+181-0
+main.pymain.py+29-3
+
+当前优化结果什么，如果效果还行，继续下一步计划
+已处理 4m 36s
+当前优化结果是正向的，尤其对我们最关心的定向攻击有效。
+在 5 个真实测试网络上，对比旧单 hub 双峰方案，新 adaptive_robust 的拓扑筛选结果为：
+Chinanet   综合分 +52.54%，degree AUC 0.0935 -> 0.1190，betweenness 0.0731 -> 0.1077
+GtsCe      综合分 +51.93%，degree AUC 0.0182 -> 0.0423，betweenness 0.0182 -> 0.0420
+Cogentco   综合分 +28.26%，degree AUC 0.0136 -> 0.0331，betweenness 0.0136 -> 0.0330
+Colt       综合分 +23.96%，degree AUC 0.0190 -> 0.0311，betweenness 0.0168 -> 0.0354
+UsCarrier  综合分 +27.01%，degree AUC 0.0180 -> 0.0294，betweenness 0.0165 -> 0.0362
+我已经继续推进了下一步计划：把评分函数从“多攻击平均”改成“定向攻击下界优先”，并加密了 hub 数量候选采样，避免重新选回脆弱的单超级 hub。
+已提交并推送到 feature/adaptive-bimodal-rl：
+4754b40 Add adaptive robust bimodal topology strategy
+6bcb93f Tune adaptive bimodal scoring for targeted attacks
+工作区当前干净，main 分支未被修改。下一步建议跑完整主流程小批量实验，比较 BiT-HyRL 与 GA+RL / ROMEN+RL / UNITY+RL / QDLM 的真实指标排名。
+已编辑 reconstruction.py+27-11查看更改撤销审核
