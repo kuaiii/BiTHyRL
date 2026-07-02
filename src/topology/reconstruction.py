@@ -613,15 +613,23 @@ def _low_layer_resilience_score(G):
 
 
 def _candidate_topology_score(G, attack_methods=None, seed=None):
-    """综合拓扑筛选分数：优先保证定向攻击下界，再兼顾随机攻击和低度层自保。"""
+    """综合拓扑筛选分数：平衡定向攻击、随机攻击和低度层自保。"""
     if attack_methods is None:
         attack_methods = ("degree", "betweenness", "random")
 
     aucs = {}
     for i, method in enumerate(attack_methods):
         seq_seed = None if seed is None else seed + 997 * (i + 1)
-        seq = _attack_sequence_for_method(G, method, seed=seq_seed)
-        aucs[method] = _attack_auc_lcc(G, seq)
+        if method == "random":
+            random_aucs = []
+            for j in range(3):
+                current_seed = None if seq_seed is None else seq_seed + 131 * j
+                seq = _attack_sequence_for_method(G, method, seed=current_seed)
+                random_aucs.append(_attack_auc_lcc(G, seq))
+            aucs[method] = 0.5 * min(random_aucs) + 0.5 * (sum(random_aucs) / len(random_aucs))
+        else:
+            seq = _attack_sequence_for_method(G, method, seed=seq_seed)
+            aucs[method] = _attack_auc_lcc(G, seq)
 
     low_layer_score = _low_layer_resilience_score(G)
     if not aucs:
@@ -634,14 +642,18 @@ def _candidate_topology_score(G, attack_methods=None, seed=None):
         targeted_values = [aucs[m] for m in targeted_methods]
         targeted_floor = min(targeted_values)
         targeted_mean = sum(targeted_values) / len(targeted_values)
+        all_floor = min(aucs.values())
+        all_mean = sum(aucs.values()) / len(aucs)
         random_score = aucs.get("random", sum(aucs.values()) / len(aucs))
 
-        # 定向攻击是当前真实网络短板，所以用 floor 避免单 hub 被一次命中后崩塌；
-        # random 和 low-layer 只作为正则项，避免评分重新偏向脆弱的单超级 hub。
+        # 验证结果显示 degree 已经领先，但 random/wgcc 会拖累综合表现；
+        # 因此用 all_floor 和 random_score 拉回多攻击泛化，同时保留 targeted_floor。
         score = (
-            0.65 * targeted_floor
-            + 0.25 * targeted_mean
-            + 0.09 * random_score
+            0.35 * all_floor
+            + 0.25 * all_mean
+            + 0.20 * random_score
+            + 0.15 * targeted_floor
+            + 0.04 * targeted_mean
             + 0.01 * low_layer_score
         )
     return score, aucs, low_layer_score
