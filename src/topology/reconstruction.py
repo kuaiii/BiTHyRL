@@ -613,7 +613,7 @@ def _low_layer_resilience_score(G):
 
 
 def _candidate_topology_score(G, attack_methods=None, seed=None):
-    """综合拓扑筛选分数：多攻击 AUC + 低度层自保。"""
+    """综合拓扑筛选分数：优先保证定向攻击下界，再兼顾随机攻击和低度层自保。"""
     if attack_methods is None:
         attack_methods = ("degree", "betweenness", "random")
 
@@ -623,14 +623,27 @@ def _candidate_topology_score(G, attack_methods=None, seed=None):
         seq = _attack_sequence_for_method(G, method, seed=seq_seed)
         aucs[method] = _attack_auc_lcc(G, seq)
 
-    if not aucs:
-        attack_score = 0.0
-    else:
-        # min 项让候选拓扑别只讨好随机攻击，mean 项保留整体曲线收益。
-        attack_score = 0.65 * min(aucs.values()) + 0.35 * (sum(aucs.values()) / len(aucs))
-
     low_layer_score = _low_layer_resilience_score(G)
-    score = 0.8 * attack_score + 0.2 * low_layer_score
+    if not aucs:
+        score = 0.05 * low_layer_score
+    else:
+        targeted_methods = [m for m in ("degree", "betweenness", "pagerank", "eigenvector") if m in aucs]
+        if not targeted_methods:
+            targeted_methods = list(aucs.keys())
+
+        targeted_values = [aucs[m] for m in targeted_methods]
+        targeted_floor = min(targeted_values)
+        targeted_mean = sum(targeted_values) / len(targeted_values)
+        random_score = aucs.get("random", sum(aucs.values()) / len(aucs))
+
+        # 定向攻击是当前真实网络短板，所以用 floor 避免单 hub 被一次命中后崩塌；
+        # random 和 low-layer 只作为正则项，避免评分重新偏向脆弱的单超级 hub。
+        score = (
+            0.65 * targeted_floor
+            + 0.25 * targeted_mean
+            + 0.09 * random_score
+            + 0.01 * low_layer_score
+        )
     return score, aucs, low_layer_score
 
 
@@ -664,8 +677,11 @@ def create_bimodal_adaptive_robust(
         hub_candidates = [1, max_hubs]
         step = (max_hubs - 1) / max(1, num_samples - 1)
         hub_candidates.extend(int(round(1 + step * i)) for i in range(1, num_samples - 1))
-        # 多加几个小 hub 候选，真实网络通常在这个区域更稳。
-        hub_candidates.extend([2, 3, 4, 5, max(1, int(round(0.05 * n)))])
+        # 小 hub 区和上界附近都容易出现稳健候选，显式加密采样。
+        hub_candidates.extend(range(2, min(12, max_hubs) + 1))
+        hub_candidates.extend([max_hubs - 2, max_hubs - 1])
+        for ratio in (0.05, 0.08, 0.10, 0.15, 0.20, 0.24):
+            hub_candidates.append(max(1, int(round(ratio * n))))
         hub_candidates = sorted({h for h in hub_candidates if 1 <= h <= max_hubs})
 
     best = None
