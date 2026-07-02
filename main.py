@@ -7,6 +7,7 @@ import logging
 import numpy as np
 from math import ceil
 from tqdm import tqdm
+import torch
 
 # 设置基础随机种子（仅用于初始化，各batch会使用不同种子以产生变化）
 BASE_RANDOM_SEED = 42
@@ -17,6 +18,8 @@ from src.topology.generators import load_graph, construct_random, construct_ba
 from src.topology.reconstruction import create_bimodal_network_exact, create_bimodal_theoretical
 import network_construction as nc  # 统一重构接口
 from src.controller.manager import ControllerManager
+from src.unified_ppo.inference import unified_solve
+from src.unified_ppo.topology_policy import TopologyPolicy
 from src.utils.visualization.result_plotter import plot_collapse_point_charts, plot_attack_steps_for_batches, plot_metric_vs_attack_steps
 from src.utils.io import save_comprehensive_metrics, save_execution_times, save_collapse_point_data, save_area_data, save_attack_steps_data, save_r_values_data
 from src.utils.logger import setup_logger, get_logger, algorithm_timer
@@ -230,6 +233,12 @@ def parse_arguments():
     
     parser.add_argument('--model', '-m', type=str, default=None, dest='gnn_model',
                         help='GNN 模型路径。默认自动搜索: curriculum_final > curriculum_phase3 > deep_gat > ...')
+    parser.add_argument('--unified-ppo-model', type=str, default=None,
+                        help='Unified PPO 模型路径。指定后将在对比中加入 Unified-PPO 方法')
+    parser.add_argument('--unified-ppo-B', type=int, default=3,
+                        help='Unified PPO 拓扑微调预算 (默认 3)')
+    parser.add_argument('--unified-ppo-M', type=int, default=50,
+                        help='Unified PPO 候选边池大小 (默认 50)')
     
     # 高级参数（向后兼容）
     parser.add_argument('--hub_ratio', type=float, default=0.15, 
@@ -415,7 +424,8 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
             "BiT-HyRL": [],
             "FRED-ABL": [],
             # "TEAM": [],  # TEAM 方法已禁用
-            "QDLM": []
+            "QDLM": [],
+            "Unified-PPO": []
         }
         
         r_values_by_metric[metric_type] = {
@@ -428,7 +438,8 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
             "BiT-HyRL": [],
             "FRED-ABL": [],
             # "TEAM": [],  # TEAM 方法已禁用
-            "QDLM": []
+            "QDLM": [],
+            "Unified-PPO": []
         }
         
         # 初始化曲线数据、崩溃点数据、面积数据和攻击步数数据
@@ -516,6 +527,38 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
             G_BiT = create_bimodal_theoretical(node_num, edge_num, seed=batch_seed)
         execution_times.setdefault("Construct_bimodal", []).append(time.time() - start_time)
         
+        # 9. Unified-PPO (按 batch seed 保持可复现)
+        G_unified_ppo = None
+        unified_ppo_centers = None
+        if args.unified_ppo_model is not None and os.path.exists(args.unified_ppo_model):
+            start_time = time.time()
+            try:
+                with algorithm_timer("Unified-PPO", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
+                    ck = torch.load(args.unified_ppo_model, map_location='cpu', weights_only=False)
+                    cfg = ck.get('model_config', {})
+                    in_channels = cfg.get('in_channels', 259)
+                    hidden_channels = cfg.get('hidden_channels', 128)
+                    heads = cfg.get('heads', 4)
+                    num_layers = cfg.get('num_layers', 3)
+                    M_candidates = cfg.get('M_candidates', args.unified_ppo_M)
+                    ppo_model = TopologyPolicy(
+                        in_channels=in_channels, hidden_channels=hidden_channels,
+                        heads=heads, num_layers=num_layers, M_candidates=M_candidates
+                    )
+                    ppo_model.load_state_dict(ck['model_state_dict'])
+                    ppo_model = ppo_model.cuda() if torch.cuda.is_available() else ppo_model
+                    result = unified_solve(
+                        G, ppo_model, B_budget=args.unified_ppo_B, k_ratio=cover_rate,
+                        embed_dim=in_channels - 3, seed=batch_seed, deterministic=True
+                    )
+                    G_unified_ppo = result['G_final']
+                    unified_ppo_centers = result['controllers']
+            except Exception as e:
+                logger.warning(f"Unified-PPO 推理失败: {e}")
+                G_unified_ppo = None
+                unified_ppo_centers = None
+            execution_times.setdefault("Construct_Unified_PPO", []).append(time.time() - start_time)
+        
         # 其它方法
         start_time = time.time()
         with algorithm_timer("GA", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
@@ -546,6 +589,7 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
             "G_FRED_ABL": G_FRED_ABL, # 6. FRED-ABL
             "G_QDLM": G_QDLM, # 7. QDLM
             "G_BiT": G_BiT, # 8. Bimodal
+            "G_unified_ppo": G_unified_ppo, # 9. Unified-PPO
             # 其它方法
             "G_GA": G_GA, # GA 优化
             # "G_TEAM": G_TEAM, # TEAM 优化（已禁用）
@@ -572,6 +616,7 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
                 ("FRED-ABL", G, G_FRED_ABL),   # 原始→FRED-ABL优化
                 ("QDLM", G, G_QDLM),           # 原始→QDLM优化
                 ("BiT-HyRL", G, G_BiT),        # 原始→Bimodal拓扑
+                ("Unified-PPO", G, G_unified_ppo), # 原始→Unified-PPO拓扑微调
                 # ("TEAM", G, G_TEAM),         # 原始→TEAM优化（已禁用）
             ]
             
@@ -597,6 +642,7 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         # 传递BiT-HyRL参数到ControllerManager
         manager = ControllerManager(
             all_G, cover_rate, node_num, dataset_name, experiment_id,
+            unified_ppo_centers=unified_ppo_centers,
             bit_hyrl_episodes=args.episodes,
             bit_hyrl_metric_type=args.metric_type,
             bit_hyrl_use_node2vec=args.use_node2vec,
@@ -613,7 +659,7 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         if is_wgcc_run:
             # WGCC 作为攻击方式：degree 与 random 各跑一次，对 GCC/CSA/CCE/WCP 四种指标求加权 (0.5*degree+0.5*random)，保存并画指标-攻击步数图
             internal_metric_types = ['gcc', 'csa', 'cce', 'wcp']
-            method_names = ["Baseline", "GA+RCP", "GA+RL", "Onion+RL", "ROMEN+RL", "UNITY+RL", "BiT-HyRL", "FRED-ABL", "QDLM"]
+            method_names = ["Baseline", "GA+RCP", "GA+RL", "Onion+RL", "ROMEN+RL", "UNITY+RL", "BiT-HyRL", "FRED-ABL", "QDLM", "Unified-PPO"]
             x_degree = {mt: {m: [] for m in method_names} for mt in internal_metric_types}
             r_degree = {mt: {m: [] for m in method_names} for mt in internal_metric_types}
             x_random = {mt: {m: [] for m in method_names} for mt in internal_metric_types}

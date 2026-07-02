@@ -5,6 +5,9 @@ BiT-HyRL GNN 策略网络 (GAT + Actor-Critic)
 使用 Graph Attention Network 捕捉图结构信息，
 支持 PPO 训练的 Actor-Critic 架构。
 """
+import os
+import hashlib
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,6 +19,23 @@ import numpy as np
 from . import config
 
 DEVICE = config.DEVICE
+
+
+# ============================================================
+# 嵌入缓存配置
+# ============================================================
+_EMBEDDING_CACHE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'dataset', 'embedding_cache'
+)
+
+
+def _graph_hash(G):
+    """基于图结构生成稳定哈希（用于缓存键）"""
+    nodes = sorted(G.nodes(), key=str)
+    edges = sorted(tuple(sorted((str(u), str(v)))) for u, v in G.edges())
+    content = f"nodes:{nodes},edges:{edges}"
+    return hashlib.md5(content.encode()).hexdigest()
 
 
 class GATPolicy(nn.Module):
@@ -37,7 +57,7 @@ class GATPolicy(nn.Module):
         num_layers: GAT 层数 (默认5，捕捉高阶信息)
     """
     
-    def __init__(self, in_channels=128, hidden_channels=128, heads=8, dropout=0.1, num_layers=5):
+    def __init__(self, in_channels=512, hidden_channels=256, heads=12, dropout=0.1, num_layers=6):
         super(GATPolicy, self).__init__()
         
         self.in_channels = in_channels
@@ -56,21 +76,10 @@ class GATPolicy(nn.Module):
         self.gat_layers = nn.ModuleList()
         self.layer_norms = nn.ModuleList()
         self.residual_projs = nn.ModuleList()
+        self.gat_projs = nn.ModuleList()  # 投影 GAT 实际输出到 hidden_channels
         
         for i in range(num_layers):
-            if i == 0:
-                # 第一层：hidden_channels -> hidden_channels * heads
-                self.gat_layers.append(GATConv(
-                    hidden_channels, 
-                    hidden_channels // heads,  # 每个头的维度
-                    heads=heads, 
-                    dropout=dropout,
-                    concat=True  # 输出维度 = (hidden_channels // heads) * heads = hidden_channels
-                ))
-                self.layer_norms.append(nn.LayerNorm(hidden_channels))
-                # 残差：维度匹配，直接用 Identity
-                self.residual_projs.append(nn.Identity())
-            elif i == num_layers - 1:
+            if i == num_layers - 1:
                 # 最后一层：hidden_channels -> hidden_channels (单头)
                 self.gat_layers.append(GATConv(
                     hidden_channels, 
@@ -79,10 +88,11 @@ class GATPolicy(nn.Module):
                     dropout=dropout,
                     concat=False
                 ))
+                self.gat_projs.append(nn.Identity())
                 self.layer_norms.append(nn.LayerNorm(hidden_channels))
                 self.residual_projs.append(nn.Identity())
             else:
-                # 中间层：保持 hidden_channels 维度
+                # 非最后一层：多头 concat
                 self.gat_layers.append(GATConv(
                     hidden_channels, 
                     hidden_channels // heads,
@@ -90,6 +100,12 @@ class GATPolicy(nn.Module):
                     dropout=dropout,
                     concat=True
                 ))
+                # 计算 GAT 实际输出维度（处理不能整除的情况）
+                actual_out = (hidden_channels // heads) * heads
+                if actual_out != hidden_channels:
+                    self.gat_projs.append(nn.Linear(actual_out, hidden_channels))
+                else:
+                    self.gat_projs.append(nn.Identity())
                 self.layer_norms.append(nn.LayerNorm(hidden_channels))
                 self.residual_projs.append(nn.Identity())
         
@@ -162,12 +178,16 @@ class GATPolicy(nn.Module):
         layer_outputs = []
         
         # GAT Layers with residual connections
-        for i, (gat, ln, res_proj) in enumerate(zip(self.gat_layers, self.layer_norms, self.residual_projs)):
+        for i, (gat, ln, res_proj, gat_proj) in enumerate(
+            zip(self.gat_layers, self.layer_norms, self.residual_projs, self.gat_projs)
+        ):
             # 保存残差
             residual = res_proj(h)
             
             # GAT 前向传播
             h = gat(h, edge_index)
+            # 投影到统一的 hidden_channels（处理 heads 不能整除的情况）
+            h = gat_proj(h)
             h = ln(h)
             h = F.elu(h)
             
@@ -422,7 +442,7 @@ def graph_to_pyg_data(G, node_features=None, device=None):
     return x, edge_index, node_list
 
 
-def get_node2vec_features(G, device=None, dimensions=128, walk_length=20, num_walks=100, p=1, q=1):
+def get_node2vec_features(G, device=None, dimensions=128, walk_length=20, num_walks=100, p=1, q=1, seed=42, use_cache=True, cache_dir=None):
     """
     获取 Node2Vec 节点嵌入特征
     
@@ -488,9 +508,10 @@ def get_node2vec_features(G, device=None, dimensions=128, walk_length=20, num_wa
             p=p, 
             q=q, 
             workers=1, 
-            quiet=True
+            quiet=True,
+            seed=seed
         )
-        model = node2vec.fit(window=10, min_count=1, batch_words=4)
+        model = node2vec.fit(window=10, min_count=1, batch_words=4, seed=seed)
         
         # 提取嵌入
         embeddings = []
@@ -522,22 +543,121 @@ def get_node2vec_features(G, device=None, dimensions=128, walk_length=20, num_wa
         return features, node_list
 
 
-def get_gnn_node_features(G, device=None, embed_dim=128):
+def get_dre_embedding(G, dim=256, device=None):
     """
-    获取 GNN 训练/推理使用的节点特征（Node2Vec 嵌入）
+    度排名嵌入 (Degree Ranking Embedding, DRE)
     
-    这是 GNN 模型的主要特征提取函数。
+    基于节点度数的全局排名，使用正弦/余弦位置编码生成结构感知嵌入。
+    度数越高的节点排名越靠前，嵌入值越能反映节点在网络中的枢纽地位。
+    
+    Args:
+        G: NetworkX 图
+        dim: 嵌入维度 (默认256)
+        device: 目标设备
+        
+    Returns:
+        features: DRE 嵌入张量 [num_nodes, dim]
+        node_list: 节点列表（按原图节点顺序）
+    """
+    if device is None:
+        device = DEVICE
+    
+    node_list = list(G.nodes())
+    num_nodes = len(node_list)
+    
+    if num_nodes == 0:
+        return torch.zeros((0, dim), dtype=torch.float32, device=device), []
+    
+    # 计算度数并排序，得到全局排名
+    degrees = dict(G.degree())
+    sorted_nodes = sorted(degrees.keys(), key=lambda x: degrees[x], reverse=True)
+    rank_map = {node: i for i, node in enumerate(sorted_nodes)}
+    
+    # 正弦/余弦位置编码
+    embeddings = []
+    for node in node_list:
+        r = float(rank_map[node])
+        emb = []
+        for i in range(dim):
+            freq = 1.0 / (10000.0 ** (i / dim))
+            if i % 2 == 0:
+                emb.append(np.sin(r * freq))
+            else:
+                emb.append(np.cos(r * freq))
+        embeddings.append(emb)
+    
+    features = np.array(embeddings, dtype=np.float32)
+    features = torch.tensor(features, dtype=torch.float32, device=device)
+    return features, node_list
+
+
+def get_gnn_node_features(
+    G, device=None, embed_dim=256, dre_dim=0, seed=42,
+    walk_length=20, num_walks=100,
+    use_cache=True, cache_dir=None
+):
+    """
+    获取 GNN 训练/推理使用的节点特征（DRE + Node2Vec 拼接）
+    
+    支持嵌入缓存：首次计算后保存到 .npy，后续直接加载。
     
     Args:
         G: NetworkX 图
         device: 目标设备
-        embed_dim: 嵌入维度 (默认128)
+        embed_dim: Node2Vec 嵌入维度 (默认256)
+        dre_dim: DRE 嵌入维度 (默认0)
+        seed: Node2Vec 随机种子 (默认42)
+        walk_length: Node2Vec 游走长度 (默认20)
+        num_walks: Node2Vec 每节点游走次数 (默认100)
+        use_cache: 是否使用嵌入缓存 (默认True)
+        cache_dir: 缓存目录 (默认 dataset/embedding_cache/)
         
     Returns:
-        features: 节点特征张量 [num_nodes, embed_dim]
+        features: 节点特征张量 [num_nodes, embed_dim + dre_dim]
         node_list: 节点列表
     """
-    return get_node2vec_features(G, device=device, dimensions=embed_dim)
+    if device is None:
+        device = DEVICE
+    
+    # === 缓存查找 ===
+    cache_path = None
+    if use_cache:
+        if cache_dir is None:
+            cache_dir = _EMBEDDING_CACHE_DIR
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        param_key = f"d{embed_dim}_dr{dre_dim}_wl{walk_length}_nw{num_walks}_s{seed}"
+        h = _graph_hash(G)
+        cache_path = os.path.join(cache_dir, f"{h}_{param_key}.npy")
+        
+        if os.path.exists(cache_path):
+            features = torch.from_numpy(np.load(cache_path)).to(device)
+            return features, list(G.nodes())
+    
+    # 1. Node2Vec 嵌入
+    n2v_features, node_list = get_node2vec_features(
+        G, device=device, dimensions=embed_dim, walk_length=walk_length,
+        num_walks=num_walks, seed=seed
+    )
+    
+    # 2. DRE 嵌入
+    if dre_dim > 0:
+        dre_features, _ = get_dre_embedding(G, dim=dre_dim, device=device)
+        if n2v_features.shape[0] != dre_features.shape[0]:
+            features = n2v_features
+        else:
+            features = torch.cat([n2v_features, dre_features], dim=1)
+    else:
+        features = n2v_features
+    
+    # 3. 保存缓存
+    if use_cache and cache_path:
+        try:
+            np.save(cache_path, features.cpu().numpy())
+        except Exception:
+            pass
+    
+    return features, node_list
 
 
 # ============================================================

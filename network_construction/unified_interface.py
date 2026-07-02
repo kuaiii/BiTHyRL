@@ -51,10 +51,11 @@ def construct(G: nx.Graph, algorithm: str = "baseline", **kwargs) -> nx.Graph:
         重构 / 优化后的网络拓扑.
     """
     if algorithm not in CONSTRUCTION_REGISTRY:
-        raise ValueError(
+        logger.warning(
             f"Unknown construction algorithm '{algorithm}'. "
             f"Available: {list_algorithms()}"
         )
+        return None
     # 调用注册的算法函数，传入图和额外参数
     result = CONSTRUCTION_REGISTRY[algorithm](G, **kwargs)
     # 如果注册的函数返回一个字典，必须包含键 'G_constructed'，否则抛出错误

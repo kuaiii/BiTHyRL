@@ -18,7 +18,7 @@ SMALL_NETWORK_THRESHOLD = 50      # 小于此值为小规模网络
 MEDIUM_NETWORK_THRESHOLD = 200    # 小于此值为中等规模网络
 
 
-def get_node2vec_embeddings(G, dimensions=64, walk_length=10, num_walks=50, p=1, q=1, workers=1):
+def get_node2vec_embeddings(G, dimensions=64, walk_length=10, num_walks=50, p=1, q=1, workers=1, seed=42):
     """
     使用 Node2Vec 生成节点嵌入。
     
@@ -94,9 +94,10 @@ def get_node2vec_embeddings(G, dimensions=64, walk_length=10, num_walks=50, p=1,
         try:
             node2vec = config.Node2Vec(
                 G_work, dimensions=dimensions, walk_length=walk_length,
-                num_walks=num_walks, p=p, q=q, workers=workers, quiet=True
+                num_walks=num_walks, p=p, q=q, workers=workers, quiet=True,
+                seed=seed
             )
-            model = node2vec.fit(window=10, min_count=1, batch_words=4)
+            model = node2vec.fit(window=10, min_count=1, batch_words=4, seed=seed)
             _node2vec_model_cache[graph_key] = model
             logger.debug(f"Node2Vec model trained on {G_work.number_of_nodes()} nodes (original: {num_original_nodes})")
         except Exception as e:
@@ -171,7 +172,7 @@ def get_node2vec_embeddings(G, dimensions=64, walk_length=10, num_walks=50, p=1,
     return embeddings_array
 
 
-def get_node_features(G, use_node2vec=True, node2vec_dim=64):
+def get_node_features(G, use_node2vec=True, node2vec_dim=64, node2vec_seed=42):
     """提取节点特征（Node2Vec 嵌入 + 5 维统计特征）。"""
     num_nodes = G.number_of_nodes()
     if num_nodes == 0:
@@ -238,7 +239,7 @@ def get_node_features(G, use_node2vec=True, node2vec_dim=64):
     stat = torch.stack([deg_norm, clust, pr, eig, katz], dim=1)
 
     if use_node2vec:
-        emb = get_node2vec_embeddings(G, dimensions=node2vec_dim)
+        emb = get_node2vec_embeddings(G, dimensions=node2vec_dim, seed=node2vec_seed)
         if emb is not None:
             node2vec_t = torch.tensor(emb, dtype=torch.float32, device=device)
             node2vec_norm = F.normalize(node2vec_t, p=2, dim=1)
@@ -402,7 +403,7 @@ def get_enhanced_features_for_small_graph(G):
     return features, node_list
 
 
-def get_adaptive_node_features(G, use_node2vec=True, node2vec_dim=64):
+def get_adaptive_node_features(G, use_node2vec=True, node2vec_dim=64, node2vec_seed=42):
     """
     自适应节点特征提取
     
@@ -444,7 +445,7 @@ def get_adaptive_node_features(G, use_node2vec=True, node2vec_dim=64):
     elif num_nodes < MEDIUM_NETWORK_THRESHOLD:
         # 尝试Node2Vec，失败则使用增强特征
         if use_node2vec and config.NODE2VEC_AVAILABLE:
-            features, node_list = get_node_features(G, use_node2vec=True, node2vec_dim=node2vec_dim)
+            features, node_list = get_node_features(G, use_node2vec=True, node2vec_dim=node2vec_dim, node2vec_seed=node2vec_seed)
             if features.shape[1] > 5:  # Node2Vec成功
                 logger.debug(f"中等规模网络 ({num_nodes} nodes): 使用Node2Vec特征 {features.shape[1]}D")
                 return features, node_list, 'standard'
@@ -459,7 +460,7 @@ def get_adaptive_node_features(G, use_node2vec=True, node2vec_dim=64):
     
     # 大规模网络：标准流程
     else:
-        features, node_list = get_node_features(G, use_node2vec=use_node2vec, node2vec_dim=node2vec_dim)
+        features, node_list = get_node_features(G, use_node2vec=use_node2vec, node2vec_dim=node2vec_dim, node2vec_seed=node2vec_seed)
         feature_type = 'standard' if features.shape[1] > 5 else 'basic'
         logger.debug(f"大规模网络 ({num_nodes} nodes): 使用{feature_type}特征 {features.shape[1]}D")
         return features, node_list, feature_type

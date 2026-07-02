@@ -1,28 +1,18 @@
-# 排除 results 文件夹
-results/
-
-# 排除大型数据集和模型权重
-dataset/all/syn/*.gml
-dataset/all/real/*.gml
-src/train/v1/checkpoints/*.pth
-
-# Python 缓存文件
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
+*.pyo
 
-# 虚拟环境
-venv/
-env/
-ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+logs/
+results/
+*.log
+dataset/all/
 
-# 系统文件
-.DS_Store
-Thumbs.db
+src/train/v1/checkpoints/*.pth
+src/train/v1/checkpoints/*.pt
+src/train/v1/checkpoints/*.ckpt
+src/train/v1/checkpoints/*training_history.csv
+src/train/v1/*.png

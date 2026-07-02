@@ -471,7 +471,7 @@ def load_gnn_model(model_path=None, prefer_curriculum=True):
         return None, None, None
 
 
-def gnn_predict(G, k, model=None, model_path=None, model_type=None, deterministic=True, embed_dim=128):
+def gnn_predict(G, k, model=None, model_path=None, model_type=None, deterministic=True, embed_dim=128, dre_dim=0):
     """
     使用 GNN 模型预测控制器（自动适配模型类型）
     
@@ -485,6 +485,7 @@ def gnn_predict(G, k, model=None, model_path=None, model_type=None, deterministi
         model_type: 模型类型（如果 model 不为 None 且需要指定类型）
         deterministic: 是否使用确定性策略（贪婪选择）
         embed_dim: Node2Vec 嵌入维度 (默认128，仅用于旧版 GAT 模型)
+        dre_dim: DRE 嵌入维度 (默认0)
         
     Returns:
         centers: 选择的控制器列表
@@ -615,7 +616,7 @@ def gnn_predict(G, k, model=None, model_path=None, model_type=None, deterministi
     
     else:
         # 旧版 GATPolicy / GATPolicyLegacy 模型
-        x, node_list = get_gnn_node_features(G, device=DEVICE, embed_dim=embed_dim)
+        x, node_list = get_gnn_node_features(G, device=DEVICE, embed_dim=embed_dim, dre_dim=dre_dim)
         _, edge_index, _ = graph_to_pyg_data(G, device=DEVICE)
         
         selected_mask = torch.zeros(num_nodes, dtype=torch.bool, device=DEVICE)

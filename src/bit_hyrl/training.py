@@ -593,12 +593,16 @@ def train_gnn_ppo_optimized(
     save_path=None,
     mode='gcc',
     lr=3e-4,
-    embed_dim=128,          # Node2Vec 嵌入维度
-    hidden_channels=128,    # 隐藏层维度
-    heads=8,                # GAT 注意力头数
-    num_layers=5,           # GAT 层数（深层）
+    embed_dim=256,          # Node2Vec 嵌入维度
+    dre_dim=256,            # DRE 度排名嵌入维度
+    hidden_channels=256,    # 隐藏层维度
+    heads=12,               # GAT 注意力头数
+    num_layers=6,           # GAT 层数（深层）
     k_ratio=0.1,
-    collect_per_epoch=20,
+    collect_per_epoch=60,
+    walk_length=20,         # Node2Vec 游走长度
+    num_walks=100,          # Node2Vec 每节点游走次数
+    use_embedding_cache=True,  # 是否使用嵌入缓存
     verbose=True,
     resume_from=None,       # 增量训练：从此 checkpoint 继续训练
     **reward_kwargs,        # 传递给奖励函数的额外参数（如 adversarial 的 sample_methods）
@@ -665,6 +669,9 @@ def train_gnn_ppo_optimized(
     if save_path is None:
         save_path = os.path.join(config.MODEL_DIR, 'gnn_ppo_agent.pth')
     
+    # 总输入维度 = Node2Vec + DRE
+    in_channels = embed_dim + dre_dim
+    
     if verbose:
         print(f"\n{'='*60}")
         print(f"BiT-HyRL Deep GAT+PPO Training")
@@ -674,6 +681,8 @@ def train_gnn_ppo_optimized(
         print(f"  Graphs: {len(graphs)}")
         print(f"  Learning Rate: {lr}")
         print(f"  Node2Vec Embed Dim: {embed_dim}")
+        print(f"  DRE Embed Dim: {dre_dim}")
+        print(f"  Total Input Dim: {in_channels}")
         print(f"  Hidden Channels: {hidden_channels}")
         print(f"  Attention Heads: {heads}")
         print(f"  GAT Layers: {num_layers}")
@@ -688,12 +697,17 @@ def train_gnn_ppo_optimized(
         save_path=save_path,
         reward_fn=reward_fn,
         lr=lr,
-        in_channels=embed_dim,
+        in_channels=in_channels,
+        embed_dim=embed_dim,
+        dre_dim=dre_dim,
         hidden_channels=hidden_channels,
         heads=heads,
         num_layers=num_layers,
         k_ratio=k_ratio,
         collect_per_epoch=collect_per_epoch,
+        walk_length=walk_length,
+        num_walks=num_walks,
+        use_embedding_cache=use_embedding_cache,
         verbose=verbose,
         resume_from=resume_from,
     )
@@ -737,6 +751,8 @@ def evaluate_gnn_model(model_path, test_graphs, mode='gcc', k_ratio=0.1, verbose
         
         # 从 checkpoint 获取模型参数
         in_channels = checkpoint.get('in_channels', 128)
+        embed_dim = checkpoint.get('embed_dim', in_channels)
+        dre_dim = checkpoint.get('dre_dim', 0)
         hidden_channels = checkpoint.get('hidden_channels', 128)
         heads = checkpoint.get('heads', 8)
         num_layers = checkpoint.get('num_layers', 5)
@@ -757,7 +773,7 @@ def evaluate_gnn_model(model_path, test_graphs, mode='gcc', k_ratio=0.1, verbose
         print(f"\n{'='*60}")
         print(f"Evaluating Deep GNN Model: {os.path.basename(model_path)}")
         print(f"  Architecture: {num_layers}-layer GAT, {heads} heads")
-        print(f"  Input: {in_channels}D Node2Vec embeddings")
+        print(f"  Input: {in_channels}D (Node2Vec {embed_dim}D + DRE {dre_dim}D)")
         print(f"Test Graphs: {len(test_graphs)}")
         print(f"{'='*60}\n")
     
@@ -777,8 +793,10 @@ def evaluate_gnn_model(model_path, test_graphs, mode='gcc', k_ratio=0.1, verbose
         is_connected = nx.is_connected(G)
         
         try:
-            # 获取 Node2Vec 特征
-            x, node_list = get_gnn_node_features(G, device=DEVICE, embed_dim=in_channels)
+            # 获取 DRE + Node2Vec 特征
+            x, node_list = get_gnn_node_features(
+                G, device=DEVICE, embed_dim=embed_dim, dre_dim=dre_dim, seed=42
+            )
             _, edge_index, _ = graph_to_pyg_data(G, device=DEVICE)
             
             # 选择控制器（全部由 GNN 选择）

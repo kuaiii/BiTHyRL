@@ -1,0 +1,72 @@
+(kanResilience) u2024010340@n1:~/codes/BiTHyRL$ python scripts/train_bit_hyrl_optimized.py \
+>       --epochs 200 \
+>       --attack-methods "degree,random" \
+>       --show-node-stats
+[GPU] PyTorch CUDA 可用: NVIDIA GeForce RTX 4090 (23.5 GB)
+======================================================================
+BiT-HyRL Optimized Training
+======================================================================
+Mode: adversarial (optimized)
+Curriculum sampling: True
+Adaptive aggregation: True
+Base aggregation: min
+Sample methods: 0 (0 = all available)
+Attack ratio: 0.15
+Epochs: 200
+Learning rate: 0.0003
+GAT layers: 6
+Hidden channels: 256
+Attention heads: 12
+Embed dim: 256
+Model save path: /home/u2024010340/codes/BiTHyRL/src/train/v1/checkpoints/gnn_ppo_agent_optimized.pth
+======================================================================
+Loading graphs: 100%|█████████████████████| 19200/19200 [23:53<00:00, 13.40it/s]
+加载完成: 19173 个有效图
+  跳过: 27 个
+
+======================================================================
+节点数量统计
+======================================================================
+  总图数   : 19173
+  最小节点数: 20
+  最大节点数: 500
+  平均节点数: 215.2
+  分布:
+    0-50    : 2394
+    50-100  : 2406
+    100-200 : 4825
+    200-500 : 7223
+    500+    : 2325
+======================================================================
+
+开始训练，共 19173 个图...
+
+============================================================
+BiT-HyRL Deep GAT+PPO Training
+============================================================
+  Mode: adversarial
+  Epochs: 200
+  Graphs: 19173
+  Learning Rate: 0.0003
+  Node2Vec Embed Dim: 256
+  Hidden Channels: 256
+  Attention Heads: 12
+  GAT Layers: 6
+  Controller Ratio: 0.1
+  Device: cuda
+============================================================
+
+Model parameters: 1,527,240
+Architecture: 6-layer GAT, 12 heads, 256 hidden dim
+Input: 256D Node2Vec embeddings
+Training Deep GAT+PPO:   0%|                                                                         | 0/200 [00:00<?, ?it/s]2026-06-10 09:56:07.545739: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2026-06-10 09:56:07.600681: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-06-10 09:56:07.600737: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-06-10 09:56:07.601852: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-06-10 09:56:07.608502: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-06-10 09:56:09.051578: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+WARNING:tensorflow:From /home/u2024010340/.conda/envs/kanResilience/lib/python3.10/site-packages/tensorflow/python/compat/v2_compat.py:108: disable_resource_variables (from tensorflow.python.ops.variable_scope) is deprecated and will be removed in a future version.
+Instructions for updating:
+non-resource variables are not supported in the long term
+Training Deep GAT+PPO:  40%|██▊    | 79/200 [23:06:56<35:08:24, 1045.49s/it, reward=0.6954, best=0.7380, policy_loss=-0.0257]

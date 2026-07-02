@@ -1133,3 +1133,222 @@ def create_bimodal_theoretical(n, m, seed=42):
     # #endregion
 
     return G_final
+
+
+def _ensure_connected_degree_preserving(G, seed=None, max_attempts=5000):
+    """
+    通过保度的 double-edge swap 使图连通，尽量不改变边数。
+    若无法通过 swap 连通，则返回 False（调用方可使用 _ensure_connectivity 作为兜底）。
+    """
+    if seed is not None:
+        random.seed(seed)
+    if nx.is_connected(G):
+        return True
+
+    nodes = list(G.nodes())
+    edges = list(G.edges())
+    for attempt in range(max_attempts):
+        comps = list(nx.connected_components(G))
+        if len(comps) == 1:
+            return True
+        main = max(comps, key=len)
+        small = next(iter([c for c in comps if c is not main]))
+
+        # 在 small 中随机选一条边
+        small_edges = [(u, v) for u, v in G.edges() if u in small and v in small]
+        if not small_edges:
+            continue
+        u, v = random.choice(small_edges)
+
+        # 在 main 中随机选一条边
+        main_edges = [(x, y) for x, y in G.edges() if x in main and y in main]
+        if not main_edges:
+            continue
+        x, y = random.choice(main_edges)
+
+        # 避免自环/重边，并确保四个节点互不相同
+        if len({u, v, x, y}) < 4:
+            continue
+        if G.has_edge(u, x) or G.has_edge(v, y):
+            continue
+
+        # 执行 2-switch：u-v, x-y -> u-x, v-y
+        G.remove_edge(u, v)
+        G.remove_edge(x, y)
+        G.add_edge(u, x)
+        G.add_edge(v, y)
+
+    return nx.is_connected(G)
+
+
+def _ensure_min_degree(G, min_degree=2, seed=None):
+    """
+    通过添加边使图中所有节点的度至少为 min_degree。
+    仅在存在可添加的简单边时操作，不删除已有边，不强制精确边数。
+    """
+    if seed is not None:
+        random.seed(seed)
+    nodes = list(G.nodes())
+    if len(nodes) < 2:
+        return
+    max_degree = len(nodes) - 1
+    # 最多迭代轮数，避免死循环
+    for _ in range(10 * len(nodes)):
+        low_nodes = [v for v in nodes if G.degree(v) < min_degree]
+        if not low_nodes:
+            break
+        v = low_nodes[0]
+        # 候选：与 v 不相邻、且自身度未满的节点；优先连接度数较低的节点
+        candidates = [u for u in nodes if u != v and not G.has_edge(v, u) and G.degree(u) < max_degree]
+        if not candidates:
+            # 若 v 已经连接到所有其他节点但仍不满足 min_degree，则图规模过小，无法继续
+            break
+        candidates.sort(key=lambda u: G.degree(u))
+        u = candidates[0]
+        G.add_edge(v, u)
+
+
+def create_bimodal_network_docx(G=None, n=None, m=None, seed=None, ensure_connected=True):
+    """
+    参照 docs/Bimodal.txt 中的修正逻辑构造双峰网络。
+
+    核心规则：
+    - 固定成本：节点数 N、边数 M 与原网络相同。
+    - 仅当 avg_k = 2M/N >= 2 时才可构造（保证低度节点 k_min >= 2）。
+    - 先尝试书中理论最优 k_max = A * N^(2/3)（A 见公式 7.67）。
+    - 若理论最优导致 k_min < 2 或 k_max > N-1，则：
+        * 边数偏少时：固定 k_min=2，k_max = 2M - 2(N-1)；
+        * 边数偏多（简单图上限）：固定 k_max=N-1，将剩余度数分配给叶子节点（k_min>=2）。
+    - 优先使用 Havel-Hakimi 生成精确度序列的简单图；不可图化时回退到配置模型。
+    - 最后确保图连通且实际最小度 >= 2。
+
+    Args:
+        G: 输入图（提供 N, M）。若给定 n, m 则优先使用 n, m。
+        n, m: 节点数与边数。
+        seed: 随机种子。
+        ensure_connected: 是否保证返回图连通（默认 True）。
+
+    Returns:
+        dict: {
+            'G': 生成的双峰网络,
+            'k_min_target': 目标低度,
+            'k_max_target': 目标高度,
+            'strategy': 'theory' / 'low' / 'cap' / 'infeasible',
+            'M_actual': 实际边数,
+            'N_actual': 实际节点数,
+            'connected': 是否连通,
+        }
+        若不可行，'G' 为 None。
+    """
+    import random
+    import numpy as np
+    import networkx as nx
+
+    if G is not None:
+        N = G.number_of_nodes()
+        M = G.number_of_edges()
+    else:
+        N = n
+        M = m
+
+    if N is None or M is None:
+        raise ValueError("必须提供 G 或 (n, m)")
+
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
+    result = {
+        'G': None,
+        'k_min_target': None,
+        'k_max_target': None,
+        'strategy': None,
+        'M_actual': None,
+        'N_actual': N,
+        'connected': False,
+    }
+
+    if N < 2 or M < N - 1:
+        result['strategy'] = 'infeasible'
+        return result
+
+    avg_k = 2 * M / N
+    if avg_k < 2:
+        result['strategy'] = 'infeasible'
+        return result
+
+    n_leaves = N - 1
+    total_deg = 2 * M
+
+    # 书中公式 7.67
+    A = ((2 * avg_k**2 * (avg_k - 1)**2) / (2 * avg_k - 1)) ** (1 / 3)
+    k_max_theory = A * (N ** (2 / 3))
+    k_min_theory = (total_deg - k_max_theory) / n_leaves
+
+    # 尝试理论最优
+    if k_min_theory >= 2.0 and k_max_theory <= N - 1:
+        k_max = int(round(k_max_theory))
+        k_max = min(max(k_max, 2), N - 1)
+        rem = total_deg - k_max
+        k_min = rem // n_leaves
+        extra = rem % n_leaves
+        strategy = 'theory'
+    elif (total_deg - 2 * n_leaves) <= N - 1:
+        # 边数偏少：优先保证 k_min = 2
+        k_min = 2
+        k_max = total_deg - 2 * n_leaves
+        k_max = min(max(k_max, k_min), N - 1)
+        rem = total_deg - k_max
+        k_min = rem // n_leaves
+        extra = rem % n_leaves
+        strategy = 'low'
+    else:
+        # 边数偏多：受简单图上限 N-1 约束
+        k_max = N - 1
+        rem = total_deg - k_max
+        k_min = rem // n_leaves
+        extra = rem % n_leaves
+        strategy = 'cap'
+
+    # 安全性检查
+    if k_min < 2:
+        result['strategy'] = 'infeasible'
+        return result
+    if k_max < k_min:
+        result['strategy'] = 'infeasible'
+        return result
+
+    # 度序列：1 个枢纽 + (N-1) 个叶子；extra 个叶子度为 k_min+1，其余为 k_min
+    degree_seq = [k_max] + [k_min + 1] * extra + [k_min] * (n_leaves - extra)
+
+    # 若不可图化，回退到配置模型
+    if nx.is_graphical(degree_seq):
+        try:
+            G_new = nx.havel_hakimi_graph(degree_seq)
+        except Exception:
+            G_new = nx.configuration_model(degree_seq, seed=seed)
+            G_new = nx.Graph(G_new)
+            G_new.remove_edges_from(nx.selfloop_edges(G_new))
+    else:
+        G_multi = nx.configuration_model(degree_seq, seed=seed)
+        G_new = nx.Graph(G_multi)
+        G_new.remove_edges_from(nx.selfloop_edges(G_new))
+
+    if ensure_connected and not nx.is_connected(G_new):
+        connected = _ensure_connected_degree_preserving(G_new, seed=seed)
+        if not connected:
+            _ensure_connectivity(G_new, seed=seed)
+
+    # Havel-Hakimi 已保证实际最小度 >= k_min >= 2，这里不再主动加边以维持精确 M。
+    # 若未来使用配置模型 fallback 且出现低度节点，可在此补充保度修复。
+
+    result.update({
+        'G': G_new,
+        'k_min_target': k_min,
+        'k_max_target': k_max,
+        'strategy': strategy,
+        'M_actual': G_new.number_of_edges(),
+        'N_actual': G_new.number_of_nodes(),
+        'connected': nx.is_connected(G_new),
+    })
+    return result

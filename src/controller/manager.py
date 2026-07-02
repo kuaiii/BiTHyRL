@@ -15,7 +15,8 @@ class ControllerManager:
     def __init__(self, all_G, rate, nodes_num, dataset_name, experiment_id, 
                  bit_hyrl_episodes=100, bit_hyrl_metric_type='robustness',
                  bit_hyrl_use_node2vec=True, bit_hyrl_use_stepwise=True, bit_hyrl_use_ci=True,
-                 bit_hyrl_test_mode=False, bit_hyrl_use_gnn=True, bit_hyrl_gnn_model=None):
+                 bit_hyrl_test_mode=False, bit_hyrl_use_gnn=True, bit_hyrl_gnn_model=None,
+                 unified_ppo_centers=None):
         """
         初始化控制器管理器，用于管理不同拓扑结构和控制器部署策略的仿真实验。
 
@@ -45,6 +46,8 @@ class ControllerManager:
         self.G_FRED_ABL = all_G.get('G_FRED_ABL')
         self.G_TEAM = all_G.get('G_TEAM')
         self.G_QDLM = all_G.get('G_QDLM')
+        self.G_unified_ppo = all_G.get('G_unified_ppo')
+        self.unified_ppo_centers = unified_ppo_centers
         
         self.rate = rate
         self.nodes_num = nodes_num
@@ -222,44 +225,48 @@ class ControllerManager:
         controller_info.append(("BiT-HyRL", self.G_BiT, len(rl_centers) if rl_centers else 0))
         
         # 4. GA+RL: GA优化拓扑 + RL选择
-        deployment_start = time.time()
-        ran_rl_centers = train_and_select(self.G_GA, self.controller_num, metric_type="robustness")
-        deployment_time = time.time() - deployment_start
-        if 'GA+RL' not in self.timing_summary:
-            self.timing_summary['GA+RL'] = []
-        self.timing_summary['GA+RL'].append(deployment_time)
-        self._process_method_multi_metric(self.G_GA, ran_rl_centers, attack_code, "GA+RL", x_values_by_metric, r_values_by_metric)
-        controller_info.append(("GA+RL", self.G_GA, len(ran_rl_centers) if ran_rl_centers else 0))
+        if self.G_GA is not None:
+            deployment_start = time.time()
+            ran_rl_centers = train_and_select(self.G_GA, self.controller_num, metric_type="robustness")
+            deployment_time = time.time() - deployment_start
+            if 'GA+RL' not in self.timing_summary:
+                self.timing_summary['GA+RL'] = []
+            self.timing_summary['GA+RL'].append(deployment_time)
+            self._process_method_multi_metric(self.G_GA, ran_rl_centers, attack_code, "GA+RL", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("GA+RL", self.G_GA, len(ran_rl_centers) if ran_rl_centers else 0))
         
         # 5. Onion+RL: Onion优化拓扑 + RL选择
-        deployment_start = time.time()
-        onion_rl_centers = train_and_select(self.G_ONION, self.controller_num, metric_type="robustness")
-        deployment_time = time.time() - deployment_start
-        if 'Onion+RL' not in self.timing_summary:
-            self.timing_summary['Onion+RL'] = []
-        self.timing_summary['Onion+RL'].append(deployment_time)
-        self._process_method_multi_metric(self.G_ONION, onion_rl_centers, attack_code, "Onion+RL", x_values_by_metric, r_values_by_metric)
-        controller_info.append(("Onion+RL", self.G_ONION, len(onion_rl_centers) if onion_rl_centers else 0))
+        if self.G_ONION is not None:
+            deployment_start = time.time()
+            onion_rl_centers = train_and_select(self.G_ONION, self.controller_num, metric_type="robustness")
+            deployment_time = time.time() - deployment_start
+            if 'Onion+RL' not in self.timing_summary:
+                self.timing_summary['Onion+RL'] = []
+            self.timing_summary['Onion+RL'].append(deployment_time)
+            self._process_method_multi_metric(self.G_ONION, onion_rl_centers, attack_code, "Onion+RL", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("Onion+RL", self.G_ONION, len(onion_rl_centers) if onion_rl_centers else 0))
  
         # 6. ROMEN+RL: ROMEN优化拓扑 + RL选择
-        deployment_start = time.time()
-        romen_rl_centers = train_and_select(self.G_ROMEM, self.controller_num, metric_type="robustness")
-        deployment_time = time.time() - deployment_start
-        if 'ROMEN+RL' not in self.timing_summary:
-            self.timing_summary['ROMEN+RL'] = []
-        self.timing_summary['ROMEN+RL'].append(deployment_time)
-        self._process_method_multi_metric(self.G_ROMEM, romen_rl_centers, attack_code, "ROMEN+RL", x_values_by_metric, r_values_by_metric)
-        controller_info.append(("ROMEN+RL", self.G_ROMEM, len(romen_rl_centers) if romen_rl_centers else 0))
+        if self.G_ROMEM is not None:
+            deployment_start = time.time()
+            romen_rl_centers = train_and_select(self.G_ROMEM, self.controller_num, metric_type="robustness")
+            deployment_time = time.time() - deployment_start
+            if 'ROMEN+RL' not in self.timing_summary:
+                self.timing_summary['ROMEN+RL'] = []
+            self.timing_summary['ROMEN+RL'].append(deployment_time)
+            self._process_method_multi_metric(self.G_ROMEM, romen_rl_centers, attack_code, "ROMEN+RL", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("ROMEN+RL", self.G_ROMEM, len(romen_rl_centers) if romen_rl_centers else 0))
 
         # 7. UNITY+RL: UNITY优化拓扑 + RL选择
-        deployment_start = time.time()
-        unity_rl_centers = train_and_select(self.G_UNITY, self.controller_num, metric_type="robustness")
-        deployment_time = time.time() - deployment_start
-        if 'UNITY+RL' not in self.timing_summary:
-            self.timing_summary['UNITY+RL'] = []
-        self.timing_summary['UNITY+RL'].append(deployment_time)
-        self._process_method_multi_metric(self.G_UNITY, unity_rl_centers, attack_code, "UNITY+RL", x_values_by_metric, r_values_by_metric)
-        controller_info.append(("UNITY+RL", self.G_UNITY, len(unity_rl_centers) if unity_rl_centers else 0))
+        if self.G_UNITY is not None:
+            deployment_start = time.time()
+            unity_rl_centers = train_and_select(self.G_UNITY, self.controller_num, metric_type="robustness")
+            deployment_time = time.time() - deployment_start
+            if 'UNITY+RL' not in self.timing_summary:
+                self.timing_summary['UNITY+RL'] = []
+            self.timing_summary['UNITY+RL'].append(deployment_time)
+            self._process_method_multi_metric(self.G_UNITY, unity_rl_centers, attack_code, "UNITY+RL", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("UNITY+RL", self.G_UNITY, len(unity_rl_centers) if unity_rl_centers else 0))
         
         # 8. FRED-ABL: FRED-ABL优化拓扑 + RL选择
         if self.G_FRED_ABL is not None:
@@ -293,6 +300,15 @@ class ControllerManager:
             self.timing_summary['QDLM'].append(deployment_time)
             self._process_method_multi_metric(self.G_QDLM, qdlm_rl_centers, attack_code, "QDLM", x_values_by_metric, r_values_by_metric)
             controller_info.append(("QDLM", self.G_QDLM, len(qdlm_rl_centers) if qdlm_rl_centers else 0))
+        
+        # 11. Unified-PPO: 统一PPO拓扑微调 + 控制器选择
+        if self.G_unified_ppo is not None and self.unified_ppo_centers is not None:
+            if 'Unified-PPO' not in self.timing_summary:
+                self.timing_summary['Unified-PPO'] = []
+            # 推理时间已在 main.py 中记录，这里记 0 或传入的时间
+            self.timing_summary['Unified-PPO'].append(0.0)
+            self._process_method_multi_metric(self.G_unified_ppo, self.unified_ppo_centers, attack_code, "Unified-PPO", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("Unified-PPO", self.G_unified_ppo, len(self.unified_ppo_centers) if self.unified_ppo_centers else 0))
         
         # 输出控制器选择信息（仅第一个batch）
         if ijk == 0:

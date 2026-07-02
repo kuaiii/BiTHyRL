@@ -103,18 +103,24 @@ class PPOTrainer:
         
         self.buffer = RolloutBuffer()
         
-    def collect_trajectory(self, G, k, reward_fn, node_features=None, embed_dim=128):
+    def collect_trajectory(self, G, k, reward_fn, node_features=None, embed_dim=256, dre_dim=0, seed=42,
+                           walk_length=20, num_walks=100, use_cache=True):
         """
         收集单个图的轨迹数据
         
-        使用 Node2Vec 嵌入作为节点特征。
+        使用 DRE + Node2Vec 拼接作为节点特征。
         
         Args:
             G: NetworkX 图
             k: 要选择的控制器数量
             reward_fn: 奖励函数 reward_fn(G, centers) -> float
             node_features: 预计算的节点特征（可选）
-            embed_dim: Node2Vec 嵌入维度 (默认128)
+            embed_dim: Node2Vec 嵌入维度 (默认256)
+            dre_dim: DRE 嵌入维度 (默认0)
+            seed: Node2Vec 随机种子 (默认42)
+            walk_length: Node2Vec 游走长度 (默认20)
+            num_walks: Node2Vec 每节点游走次数 (默认100)
+            use_cache: 是否使用嵌入缓存 (默认True)
             
         Returns:
             centers: 选择的控制器列表
@@ -122,9 +128,12 @@ class PPOTrainer:
         """
         self.model.eval()
         
-        # 获取 Node2Vec 节点特征
+        # 获取 DRE + Node2Vec 节点特征
         if node_features is None:
-            x, node_list = get_gnn_node_features(G, device=DEVICE, embed_dim=embed_dim)
+            x, node_list = get_gnn_node_features(
+                G, device=DEVICE, embed_dim=embed_dim, dre_dim=dre_dim, seed=seed,
+                walk_length=walk_length, num_walks=num_walks, use_cache=use_cache
+            )
         else:
             x = node_features.to(DEVICE)
             node_list = list(G.nodes())
@@ -354,12 +363,17 @@ def train_gnn_ppo(
     save_path=None,
     reward_fn=None,
     lr=3e-4,
-    in_channels=128,        # Node2Vec 嵌入维度
-    hidden_channels=128,    # 隐藏层维度
-    heads=8,                # GAT 注意力头数
-    num_layers=5,           # GAT 层数（深层）
+    in_channels=512,        # 总输入维度 (embed_dim + dre_dim)
+    embed_dim=256,          # Node2Vec 嵌入维度
+    dre_dim=256,            # DRE 嵌入维度
+    hidden_channels=256,    # 隐藏层维度
+    heads=12,               # GAT 注意力头数
+    num_layers=6,           # GAT 层数（深层）
     k_ratio=0.1,
-    collect_per_epoch=20,
+    collect_per_epoch=60,
+    walk_length=20,         # Node2Vec 游走长度
+    num_walks=100,          # Node2Vec 每节点游走次数
+    use_embedding_cache=True,  # 是否使用嵌入缓存
     verbose=True,
     resume_from=None,       # 增量训练：从此 checkpoint 加载继续训练
 ):
@@ -434,7 +448,10 @@ def train_gnn_ppo(
         total_params = sum(p.numel() for p in model.parameters())
         print(f"Model parameters: {total_params:,}")
         print(f"Architecture: {num_layers}-layer GAT, {heads} heads, {hidden_channels} hidden dim")
-        print(f"Input: {in_channels}D Node2Vec embeddings")
+        feature_desc = f"Node2Vec {embed_dim}D"
+        if dre_dim > 0:
+            feature_desc += f" + DRE {dre_dim}D"
+        print(f"Input: {in_channels}D ({feature_desc})")
     
     # 创建训练器
     trainer = PPOTrainer(model, lr=lr)
@@ -458,7 +475,10 @@ def train_gnn_ppo(
             
             # 收集轨迹（使用 Node2Vec 嵌入）
             try:
-                centers, reward = trainer.collect_trajectory(G, k, reward_fn, embed_dim=in_channels)
+                centers, reward = trainer.collect_trajectory(
+                    G, k, reward_fn, embed_dim=embed_dim, dre_dim=dre_dim, seed=42,
+                    walk_length=walk_length, num_walks=num_walks, use_cache=use_embedding_cache
+                )
                 epoch_rewards.append(reward)
             except Exception as e:
                 if verbose and epoch == 0:
@@ -493,6 +513,8 @@ def train_gnn_ppo(
             'model_state_dict': best_model_state if best_model_state else model.state_dict(),
             'model_type': 'GATPolicy',
             'in_channels': in_channels,
+            'embed_dim': embed_dim,
+            'dre_dim': dre_dim,
             'hidden_channels': hidden_channels,
             'heads': heads,
             'num_layers': num_layers,
