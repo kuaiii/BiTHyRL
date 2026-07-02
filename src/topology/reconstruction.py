@@ -1058,7 +1058,8 @@ def _reinforce_low_layer_backbone(G, num_hubs, target_m, seed=None):
         (low_nodes[i], low_nodes[(i + 1) % len(low_nodes)])
         for i in range(len(low_nodes))
     ]
-    max_added_backbone = max(1, min(len(backbone_edges), target_m // 4))
+    # 经验上 0.4M 能显著降低 hub 失效后的级联碎裂，同时保留部分 hub 层。
+    max_added_backbone = max(1, min(len(backbone_edges), int(round(target_m * 0.4))))
     added_backbone = 0
 
     for u, v in backbone_edges:
