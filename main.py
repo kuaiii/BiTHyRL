@@ -15,7 +15,11 @@ random.seed(BASE_RANDOM_SEED)
 np.random.seed(BASE_RANDOM_SEED)
 
 from src.topology.generators import load_graph, construct_random, construct_ba
-from src.topology.reconstruction import create_bimodal_network_exact, create_bimodal_theoretical
+from src.topology.reconstruction import (
+    create_bimodal_adaptive_robust,
+    create_bimodal_network_exact,
+    create_bimodal_theoretical,
+)
 import network_construction as nc  # 统一重构接口
 from src.controller.manager import ControllerManager
 from src.unified_ppo.inference import unified_solve
@@ -239,6 +243,15 @@ def parse_arguments():
                         help='Unified PPO 拓扑微调预算 (默认 3)')
     parser.add_argument('--unified-ppo-M', type=int, default=50,
                         help='Unified PPO 候选边池大小 (默认 50)')
+    parser.add_argument('--bimodal-strategy', type=str, default='adaptive_robust',
+                        choices=['adaptive_robust', 'theoretical', 'exact'],
+                        help='BiT-HyRL 拓扑构造策略 (默认: adaptive_robust)')
+    parser.add_argument('--bimodal-max-hub-ratio', type=float, default=0.25,
+                        help='adaptive_robust 的最大 hub 比例 (默认: 0.25)')
+    parser.add_argument('--bimodal-samples', type=int, default=12,
+                        help='adaptive_robust 的 hub 数量采样数 (默认: 12)')
+    parser.add_argument('--bimodal-attacks', type=str, default='degree,betweenness,random',
+                        help='adaptive_robust 拓扑筛选使用的攻击集合')
     
     # 高级参数（向后兼容）
     parser.add_argument('--hub_ratio', type=float, default=0.15, 
@@ -523,8 +536,21 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         # 8. Bimodal
         start_time = time.time()
         with algorithm_timer("Bimodal", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
-            # G_BiT = create_bimodal_network_exact(G, hub_ratio=0.15, seed=batch_seed)
-            G_BiT = create_bimodal_theoretical(node_num, edge_num, seed=batch_seed)
+            if args.bimodal_strategy == 'adaptive_robust':
+                bimodal_attacks = [m.strip() for m in args.bimodal_attacks.split(',') if m.strip()]
+                G_BiT = create_bimodal_adaptive_robust(
+                    G,
+                    seed=batch_seed,
+                    max_hub_ratio=args.bimodal_max_hub_ratio,
+                    num_samples=args.bimodal_samples,
+                    attack_methods=bimodal_attacks,
+                    verbose=(ijk == 0 and args.debug),
+                )
+            elif args.bimodal_strategy == 'exact':
+                hub_num = max(1, int(round(node_num * args.hub_ratio)))
+                G_BiT = create_bimodal_network_exact(G, hub_num=hub_num, seed=batch_seed)
+            else:
+                G_BiT = create_bimodal_theoretical(node_num, edge_num, seed=batch_seed)
         execution_times.setdefault("Construct_bimodal", []).append(time.time() - start_time)
         
         # 9. Unified-PPO (按 batch seed 保持可复现)

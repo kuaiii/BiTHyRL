@@ -255,6 +255,7 @@ def _resolve_gnn_model_path(model_path=None, prefer_curriculum=True):
     
     # 其他 GNN 模型
     candidates.extend([
+        os.path.join(config.MODEL_DIR, 'gnn_ppo_agent_optimized.pth'),              # 当前仓库已有的优化版
         os.path.join(config.MODEL_DIR, 'deep_gat_gcc_L5_H8_D128.pth'),               # 深层 GAT GCC 模型
         os.path.join(config.MODEL_DIR, 'gnn_ppo_agent_robustness_focus50-150.pth'),   # 针对50-150节点优化
         os.path.join(config.MODEL_DIR, 'gnn_ppo_agent_robustness_improved.pth'),     # 改进版

@@ -536,6 +536,187 @@ def _evaluate_robustness(G, seed=None):
     return R_weight, R_degree, R_random
 
 
+def _attack_auc_lcc(G, attack_sequence):
+    """计算给定攻击序列下的 LCC AUC，节点移除比例为 x 轴。"""
+    if G is None or G.number_of_nodes() == 0:
+        return 0.0
+
+    G_sim = G.copy()
+    n0 = G_sim.number_of_nodes()
+    x_curve = [0.0]
+    y_curve = [1.0]
+
+    for step, node in enumerate(attack_sequence, start=1):
+        if G_sim.has_node(node):
+            G_sim.remove_node(node)
+        if G_sim.number_of_nodes() == 0:
+            y_val = 0.0
+        else:
+            y_val = max((len(c) for c in nx.connected_components(G_sim)), default=0) / n0
+        x_curve.append(step / n0)
+        y_curve.append(y_val)
+
+    if len(x_curve) < 2:
+        return 0.0
+    return float(np.trapz(y_curve, x_curve))
+
+
+def _attack_sequence_for_method(G, method, seed=None):
+    """生成轻量级拓扑筛选用的攻击序列。"""
+    nodes = list(G.nodes())
+    if method == "random":
+        rng = random.Random(seed)
+        rng.shuffle(nodes)
+        return nodes
+    if method == "betweenness":
+        scores = nx.betweenness_centrality(G)
+        return sorted(nodes, key=lambda v: scores.get(v, 0.0), reverse=True)
+    if method == "pagerank":
+        scores = nx.pagerank(G)
+        return sorted(nodes, key=lambda v: scores.get(v, 0.0), reverse=True)
+    if method == "eigenvector":
+        try:
+            scores = nx.eigenvector_centrality(G, max_iter=1000)
+            return sorted(nodes, key=lambda v: scores.get(v, 0.0), reverse=True)
+        except Exception:
+            pass
+    return sorted(nodes, key=lambda v: G.degree(v), reverse=True)
+
+
+def _low_layer_resilience_score(G):
+    """
+    评估移除最高度 hub 后，低度层是否仍能自保。
+
+    双峰理论要求低度节点层自身能形成巨连通分支；该项用于避免单枢纽被打掉后
+    外围节点立即碎裂。
+    """
+    n = G.number_of_nodes()
+    if n <= 2:
+        return 0.0
+
+    degrees = dict(G.degree())
+    avg_degree = sum(degrees.values()) / n if n > 0 else 0.0
+    hub_threshold = max(avg_degree * 2.0, avg_degree + 1.0)
+    hub_nodes = [v for v, d in degrees.items() if d >= hub_threshold]
+    if not hub_nodes:
+        hub_nodes = [max(degrees, key=degrees.get)]
+
+    G_low = G.copy()
+    G_low.remove_nodes_from(hub_nodes)
+    if G_low.number_of_nodes() == 0:
+        return 0.0
+
+    low_n = G_low.number_of_nodes()
+    lcc_ratio = max((len(c) for c in nx.connected_components(G_low)), default=0) / low_n
+    min_degree_ratio = min(1.0, min((d for _, d in G_low.degree()), default=0) / 2.0)
+    return 0.75 * lcc_ratio + 0.25 * min_degree_ratio
+
+
+def _candidate_topology_score(G, attack_methods=None, seed=None):
+    """综合拓扑筛选分数：多攻击 AUC + 低度层自保。"""
+    if attack_methods is None:
+        attack_methods = ("degree", "betweenness", "random")
+
+    aucs = {}
+    for i, method in enumerate(attack_methods):
+        seq_seed = None if seed is None else seed + 997 * (i + 1)
+        seq = _attack_sequence_for_method(G, method, seed=seq_seed)
+        aucs[method] = _attack_auc_lcc(G, seq)
+
+    if not aucs:
+        attack_score = 0.0
+    else:
+        # min 项让候选拓扑别只讨好随机攻击，mean 项保留整体曲线收益。
+        attack_score = 0.65 * min(aucs.values()) + 0.35 * (sum(aucs.values()) / len(aucs))
+
+    low_layer_score = _low_layer_resilience_score(G)
+    score = 0.8 * attack_score + 0.2 * low_layer_score
+    return score, aucs, low_layer_score
+
+
+def create_bimodal_adaptive_robust(
+    G,
+    seed=None,
+    max_hub_ratio=0.25,
+    num_samples=12,
+    attack_methods=None,
+    verbose=False,
+):
+    """
+    自适应鲁棒双峰构造：在固定 N/M 下搜索 hub 数量，优先选择多攻击 AUC 稳健的拓扑。
+
+    保留双峰先验，但不再固定为单超级枢纽；这能缓解真实网络在 degree/betweenness
+    攻击下“一打 hub 即崩”的问题。
+    """
+    n = G.number_of_nodes()
+    m = G.number_of_edges()
+    if n < 4 or m < n - 1:
+        return create_bimodal_theoretical(n, m, seed=seed)
+
+    if attack_methods is None:
+        attack_methods = ("degree", "betweenness", "random")
+
+    max_hubs = max(1, min(n - 1, int(round(n * max_hub_ratio))))
+    max_hubs = min(max_hubs, max(1, n // 4))
+    if max_hubs <= num_samples:
+        hub_candidates = list(range(1, max_hubs + 1))
+    else:
+        hub_candidates = [1, max_hubs]
+        step = (max_hubs - 1) / max(1, num_samples - 1)
+        hub_candidates.extend(int(round(1 + step * i)) for i in range(1, num_samples - 1))
+        # 多加几个小 hub 候选，真实网络通常在这个区域更稳。
+        hub_candidates.extend([2, 3, 4, 5, max(1, int(round(0.05 * n)))])
+        hub_candidates = sorted({h for h in hub_candidates if 1 <= h <= max_hubs})
+
+    best = None
+    search_results = []
+    for hub_num in hub_candidates:
+        current_seed = None if seed is None else seed + hub_num
+        G_candidate = create_bimodal_with_num_hubs(n, m, hub_num, seed=current_seed)
+        if G_candidate is None:
+            continue
+
+        score, aucs, low_layer_score = _candidate_topology_score(
+            G_candidate, attack_methods=attack_methods, seed=current_seed
+        )
+        record = {
+            "hub_num": hub_num,
+            "score": score,
+            "aucs": aucs,
+            "low_layer_score": low_layer_score,
+        }
+        search_results.append(record)
+        if best is None or score > best["score"]:
+            best = {"G": G_candidate.copy(), **record}
+
+        if verbose:
+            auc_text = ", ".join(f"{k}={v:.4f}" for k, v in aucs.items())
+            print(
+                f"  hub_num={hub_num:3d}: score={score:.4f}, "
+                f"low_layer={low_layer_score:.4f}, {auc_text}"
+            )
+
+    if best is None:
+        logger.warning("Adaptive robust bimodal search failed; falling back to theoretical bimodal.")
+        G_fallback = create_bimodal_theoretical(n, m, seed=seed)
+        G_fallback.graph["adaptive_bimodal"] = {"fallback": True}
+        return G_fallback
+
+    best_graph = best["G"]
+    best_graph.graph["adaptive_bimodal"] = {
+        "strategy": "adaptive_robust",
+        "best_hub_num": best["hub_num"],
+        "best_score": best["score"],
+        "best_aucs": best["aucs"],
+        "best_low_layer_score": best["low_layer_score"],
+        "search_results": search_results,
+        "attack_methods": list(attack_methods),
+    }
+    if verbose:
+        print(f"Adaptive robust bimodal selected hub_num={best['hub_num']} score={best['score']:.4f}")
+    return best_graph
+
+
 def create_bimodal_adaptive(G, seed=None, search_range=None, num_samples=10, verbose=False):
     """
     自适应选择最佳 hub_num 的双峰网络构造。
