@@ -612,7 +612,41 @@ def _low_layer_resilience_score(G):
     return 0.75 * lcc_ratio + 0.25 * min_degree_ratio
 
 
-def _candidate_topology_score(G, attack_methods=None, seed=None):
+def _random_resilience_regularizer(G, low_layer_score=None):
+    """随机攻击泛化正则：减少叶子节点，提升 2-core 和谱连通性。"""
+    n = G.number_of_nodes()
+    if n <= 2:
+        return 0.0
+
+    degrees = [d for _, d in G.degree()]
+    leaf_ratio = sum(1 for d in degrees if d <= 1) / n
+    leaf_score = 1.0 - leaf_ratio
+
+    try:
+        two_core = nx.k_core(G, k=2)
+        two_core_ratio = two_core.number_of_nodes() / n
+    except Exception:
+        two_core_ratio = 0.0
+
+    if low_layer_score is None:
+        low_layer_score = _low_layer_resilience_score(G)
+
+    try:
+        avg_degree = max(1e-6, 2 * G.number_of_edges() / n)
+        algebraic = nx.algebraic_connectivity(G, tol=1e-3)
+        spectral_score = min(1.0, float(algebraic) / avg_degree)
+    except Exception:
+        spectral_score = 0.0
+
+    return (
+        0.35 * leaf_score
+        + 0.25 * two_core_ratio
+        + 0.25 * low_layer_score
+        + 0.15 * spectral_score
+    )
+
+
+def _candidate_topology_score(G, attack_methods=None, seed=None, score_profile="balanced"):
     """综合拓扑筛选分数：平衡定向攻击、随机攻击和低度层自保。"""
     if attack_methods is None:
         attack_methods = ("degree", "betweenness", "random")
@@ -632,8 +666,9 @@ def _candidate_topology_score(G, attack_methods=None, seed=None):
             aucs[method] = _attack_auc_lcc(G, seq)
 
     low_layer_score = _low_layer_resilience_score(G)
+    random_regularizer = _random_resilience_regularizer(G, low_layer_score=low_layer_score)
     if not aucs:
-        score = 0.05 * low_layer_score
+        score = 0.05 * low_layer_score + 0.05 * random_regularizer
     else:
         targeted_methods = [m for m in ("degree", "betweenness", "pagerank", "eigenvector") if m in aucs]
         if not targeted_methods:
@@ -646,16 +681,47 @@ def _candidate_topology_score(G, attack_methods=None, seed=None):
         all_mean = sum(aucs.values()) / len(aucs)
         random_score = aucs.get("random", sum(aucs.values()) / len(aucs))
 
-        # 验证结果显示 degree 已经领先，但 random/wgcc 会拖累综合表现；
-        # 因此用 all_floor 和 random_score 拉回多攻击泛化，同时保留 targeted_floor。
-        score = (
-            0.35 * all_floor
-            + 0.25 * all_mean
-            + 0.20 * random_score
-            + 0.15 * targeted_floor
-            + 0.04 * targeted_mean
-            + 0.01 * low_layer_score
-        )
+        if score_profile == "targeted":
+            score = (
+                0.55 * targeted_floor
+                + 0.25 * targeted_mean
+                + 0.10 * all_floor
+                + 0.06 * random_score
+                + 0.03 * random_regularizer
+                + 0.01 * low_layer_score
+            )
+        elif score_profile == "random":
+            score = (
+                0.45 * random_score
+                + 0.20 * all_mean
+                + 0.15 * all_floor
+                + 0.10 * random_regularizer
+                + 0.06 * targeted_floor
+                + 0.03 * targeted_mean
+                + 0.01 * low_layer_score
+            )
+        elif score_profile == "wgcc":
+            score = (
+                0.30 * random_score
+                + 0.25 * targeted_floor
+                + 0.20 * all_mean
+                + 0.15 * all_floor
+                + 0.06 * random_regularizer
+                + 0.03 * targeted_mean
+                + 0.01 * low_layer_score
+            )
+        else:
+            # 验证结果显示 degree 已经领先，但 random/wgcc 会拖累综合表现；
+            # 因此用 all_floor 和 random_score 拉回多攻击泛化，同时保留 targeted_floor。
+            score = (
+                0.32 * all_floor
+                + 0.23 * all_mean
+                + 0.20 * random_score
+                + 0.15 * targeted_floor
+                + 0.04 * targeted_mean
+                + 0.01 * low_layer_score
+                + 0.05 * random_regularizer
+            )
     return score, aucs, low_layer_score
 
 
@@ -665,6 +731,7 @@ def create_bimodal_adaptive_robust(
     max_hub_ratio=0.25,
     num_samples=12,
     attack_methods=None,
+    score_profile="balanced",
     verbose=False,
 ):
     """
@@ -705,7 +772,7 @@ def create_bimodal_adaptive_robust(
             continue
 
         score, aucs, low_layer_score = _candidate_topology_score(
-            G_candidate, attack_methods=attack_methods, seed=current_seed
+            G_candidate, attack_methods=attack_methods, seed=current_seed, score_profile=score_profile
         )
         record = {
             "hub_num": hub_num,
@@ -739,6 +806,7 @@ def create_bimodal_adaptive_robust(
         "best_low_layer_score": best["low_layer_score"],
         "search_results": search_results,
         "attack_methods": list(attack_methods),
+        "score_profile": score_profile,
     }
     if verbose:
         print(f"Adaptive robust bimodal selected hub_num={best['hub_num']} score={best['score']:.4f}")

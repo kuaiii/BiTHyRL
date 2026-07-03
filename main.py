@@ -252,6 +252,9 @@ def parse_arguments():
                         help='adaptive_robust 的 hub 数量采样数 (默认: 12)')
     parser.add_argument('--bimodal-attacks', type=str, default='degree,betweenness,random',
                         help='adaptive_robust 拓扑筛选使用的攻击集合')
+    parser.add_argument('--bimodal-score-profile', type=str, default='auto',
+                        choices=['auto', 'balanced', 'targeted', 'random', 'wgcc'],
+                        help='adaptive_robust 拓扑评分权重配置 (默认: auto)')
     
     # 高级参数（向后兼容）
     parser.add_argument('--hub_ratio', type=float, default=0.15, 
@@ -538,12 +541,22 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         with algorithm_timer("Bimodal", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
             if args.bimodal_strategy == 'adaptive_robust':
                 bimodal_attacks = [m.strip() for m in args.bimodal_attacks.split(',') if m.strip()]
+                if args.bimodal_score_profile == 'auto':
+                    if current_attack_mode in ('random', 'wgcc'):
+                        score_profile = 'wgcc'
+                    elif current_attack_mode in ('degree', 'target', 'betweenness'):
+                        score_profile = 'targeted'
+                    else:
+                        score_profile = 'balanced'
+                else:
+                    score_profile = args.bimodal_score_profile
                 G_BiT = create_bimodal_adaptive_robust(
                     G,
                     seed=batch_seed,
                     max_hub_ratio=args.bimodal_max_hub_ratio,
                     num_samples=args.bimodal_samples,
                     attack_methods=bimodal_attacks,
+                    score_profile=score_profile,
                     verbose=(ijk == 0 and args.debug),
                 )
             elif args.bimodal_strategy == 'exact':
