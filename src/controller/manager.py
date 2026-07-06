@@ -16,7 +16,7 @@ class ControllerManager:
                  bit_hyrl_episodes=100, bit_hyrl_metric_type='robustness',
                  bit_hyrl_use_node2vec=True, bit_hyrl_use_stepwise=True, bit_hyrl_use_ci=True,
                  bit_hyrl_test_mode=False, bit_hyrl_use_gnn=True, bit_hyrl_gnn_model=None,
-                 unified_ppo_centers=None):
+                 unified_ppo_centers=None, bit_ppo_centers=None, bit_use_gnn_controller=False):
         """
         初始化控制器管理器，用于管理不同拓扑结构和控制器部署策略的仿真实验。
 
@@ -47,7 +47,10 @@ class ControllerManager:
         self.G_TEAM = all_G.get('G_TEAM')
         self.G_QDLM = all_G.get('G_QDLM')
         self.G_unified_ppo = all_G.get('G_unified_ppo')
+        self.G_BiT_base = all_G.get('G_BiT_base')
         self.unified_ppo_centers = unified_ppo_centers
+        self.bit_ppo_centers = bit_ppo_centers
+        self.bit_use_gnn_controller = bit_use_gnn_controller
         
         self.rate = rate
         self.nodes_num = nodes_num
@@ -97,7 +100,13 @@ class ControllerManager:
         top_10_degrees = degrees[:10] if len(degrees) >= 10 else degrees
         top_10_str = str(top_10_degrees).replace(',', ';')
             
-        metrics_dict, x_gcc_20, attack_steps_dict = node_attack(G_target.copy(), self.nodes_num, set(centers), attack_mode)
+        metrics_dict, x_gcc_20, attack_steps_dict = node_attack(
+            G_target.copy(),
+            self.nodes_num,
+            set(centers),
+            attack_mode,
+            seed=getattr(self, "_attack_seed", None),
+        )
         
         metric_collapse_points = {}
         metric_r_values = {}
@@ -192,6 +201,7 @@ class ControllerManager:
         deployment_start = time.time()
         # 使用ijk计算seed，确保不同batch结果不同
         batch_seed = 42 + ijk  # BASE_RANDOM_SEED = 42
+        self._attack_seed = batch_seed
         ori_random_centers = random_select_controllers(self.G, self.rate, seed=batch_seed)
         deployment_time = time.time() - deployment_start
         if 'Baseline' not in self.timing_summary:
@@ -210,19 +220,39 @@ class ControllerManager:
         self._process_method_multi_metric(self.G, ori_ECA_centers, attack_code, "GA+RCP", x_values_by_metric, r_values_by_metric)
         controller_info.append(("GA+RCP", self.G, len(ori_ECA_centers)))
         
-        # 3. BiT-HyRL: Bimodal + GNN 选择（模型路径 None 时自动搜索最佳模型）
+        # 3. BiT-HyRL: Bimodal（可能经过 PPO 微调）+ 对应控制器
         deployment_start = time.time()
-        rl_centers = hybrid_gnn_select(
-            self.G_BiT, self.controller_num,
-            model_path=self.bit_hyrl_gnn_model,  # 支持指定模型路径
-            use_ci=self.bit_hyrl_use_ci
-        )
+        if self.bit_ppo_centers is not None and not self.bit_use_gnn_controller:
+            # 使用 Unified-PPO 微调阶段已选定的控制器
+            bit_centers = self.bit_ppo_centers
+        else:
+            # 未启用 PPO 微调时，使用 GNN 自动搜索最佳模型
+            bit_centers = hybrid_gnn_select(
+                self.G_BiT, self.controller_num,
+                model_path=self.bit_hyrl_gnn_model,
+                use_ci=self.bit_hyrl_use_ci
+            )
         deployment_time = time.time() - deployment_start
         if 'BiT-HyRL' not in self.timing_summary:
             self.timing_summary['BiT-HyRL'] = []
         self.timing_summary['BiT-HyRL'].append(deployment_time)
-        self._process_method_multi_metric(self.G_BiT, rl_centers, attack_code, "BiT-HyRL", x_values_by_metric, r_values_by_metric)
-        controller_info.append(("BiT-HyRL", self.G_BiT, len(rl_centers) if rl_centers else 0))
+        self._process_method_multi_metric(self.G_BiT, bit_centers, attack_code, "BiT-HyRL", x_values_by_metric, r_values_by_metric)
+        controller_info.append(("BiT-HyRL", self.G_BiT, len(bit_centers) if bit_centers else 0))
+        
+        # 3b. BiT-HyRL-base: 原始双峰拓扑 + GNN 选择（可选对照）
+        if self.G_BiT_base is not None:
+            deployment_start = time.time()
+            base_centers = hybrid_gnn_select(
+                self.G_BiT_base, self.controller_num,
+                model_path=self.bit_hyrl_gnn_model,
+                use_ci=self.bit_hyrl_use_ci
+            )
+            deployment_time = time.time() - deployment_start
+            if 'BiT-HyRL-base' not in self.timing_summary:
+                self.timing_summary['BiT-HyRL-base'] = []
+            self.timing_summary['BiT-HyRL-base'].append(deployment_time)
+            self._process_method_multi_metric(self.G_BiT_base, base_centers, attack_code, "BiT-HyRL-base", x_values_by_metric, r_values_by_metric)
+            controller_info.append(("BiT-HyRL-base", self.G_BiT_base, len(base_centers) if base_centers else 0))
         
         # 4. GA+RL: GA优化拓扑 + RL选择
         if self.G_GA is not None:

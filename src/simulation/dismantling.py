@@ -244,7 +244,7 @@ def adaptive_hybrid_dismantling(G):
 # Main Simulation Logic
 # -------------------------------------------------------
 
-def get_dismantling_sequence(G, method):
+def get_dismantling_sequence(G, method, seed=None):
     """
     根据指定的方法名称获取拆解序列。
     
@@ -265,14 +265,18 @@ def get_dismantling_sequence(G, method):
         "pagerank": "pagerank",
         "betweenness": "betweenness",
         "eigenvector": "eigenvector",
+        "adaptive_degree": "adaptive_degree",
+        "adaptive_betweenness": "adaptive_betweenness",
+        "adaptive_bridge": "adaptive_bridge",
+        "lookahead_gcc": "lookahead_gcc",
         "hybrid": "adaptive_hybrid",
     }
     nd_method = method_map.get(method, method)
     try:
-        return nd.dismantle(G, method=nd_method)
+        return nd.dismantle(G, method=nd_method, seed=seed)
     except Exception as e:
         logger.warning(f"network_dismantling method '{nd_method}' failed: {e}, falling back to random.")
-        return nd.dismantle(G, method="random")
+        return nd.dismantle(G, method="random", seed=seed)
 
 def simulate_dismantling(G, sequence, nodes_num, centers):
     """
@@ -499,7 +503,7 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
                 
     return metrics_dict, x_when_gcc_20_percent, attack_steps_dict
 
-def node_attack(G, nodes_num, centers, flag):
+def node_attack(G, nodes_num, centers, flag, seed=None):
     """
     为了向后兼容的包装函数。
     1. 根据 flag 生成拆解序列。
@@ -507,7 +511,7 @@ def node_attack(G, nodes_num, centers, flag):
     """
     #1. 获取序列
     # 我们传递副本给 get_sequence，因为自适应方法会修改图
-    sequence = get_dismantling_sequence(G.copy(), flag)
+    sequence = get_dismantling_sequence(G.copy(), flag, seed=seed)
     
     logger.info(f"Starting node attack simulation. Mode: {flag}")
     

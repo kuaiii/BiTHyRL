@@ -568,9 +568,60 @@ def _attack_sequence_for_method(G, method, seed=None):
         rng = random.Random(seed)
         rng.shuffle(nodes)
         return nodes
+    if method == "adaptive_degree":
+        H = G.copy()
+        seq = []
+        while H.number_of_nodes() > 0:
+            node = max(H.nodes(), key=lambda v: H.degree(v))
+            seq.append(node)
+            H.remove_node(node)
+        return seq
     if method == "betweenness":
         scores = nx.betweenness_centrality(G)
         return sorted(nodes, key=lambda v: scores.get(v, 0.0), reverse=True)
+    if method == "adaptive_betweenness":
+        H = G.copy()
+        seq = []
+        while H.number_of_nodes() > 0:
+            if H.number_of_nodes() <= 2:
+                scores = dict(H.degree())
+            else:
+                scores = nx.betweenness_centrality(H)
+            node = max(H.nodes(), key=lambda v: (scores.get(v, 0.0), H.degree(v)))
+            seq.append(node)
+            H.remove_node(node)
+        return seq
+    if method == "adaptive_bridge":
+        H = G.copy()
+        seq = []
+        while H.number_of_nodes() > 0:
+            scores = {v: float(H.degree(v)) for v in H.nodes()}
+            for v in nx.articulation_points(H):
+                scores[v] = scores.get(v, 0.0) + H.number_of_nodes()
+            for u, v in nx.bridges(H):
+                scores[u] = scores.get(u, 0.0) + 0.5 * H.number_of_nodes()
+                scores[v] = scores.get(v, 0.0) + 0.5 * H.number_of_nodes()
+            node = max(H.nodes(), key=lambda v: (scores.get(v, 0.0), H.degree(v)))
+            seq.append(node)
+            H.remove_node(node)
+        return seq
+    if method == "lookahead_gcc":
+        H = G.copy()
+        seq = []
+        while H.number_of_nodes() > 0:
+            candidates = sorted(H.nodes(), key=lambda v: H.degree(v), reverse=True)[:8]
+            best_node = candidates[0]
+            best_lcc = float("inf")
+            for node in candidates:
+                T = H.copy()
+                T.remove_node(node)
+                lcc = max((len(c) for c in nx.connected_components(T)), default=0)
+                if lcc < best_lcc or (lcc == best_lcc and H.degree(node) > H.degree(best_node)):
+                    best_lcc = lcc
+                    best_node = node
+            seq.append(best_node)
+            H.remove_node(best_node)
+        return seq
     if method == "pagerank":
         scores = nx.pagerank(G)
         return sorted(nodes, key=lambda v: scores.get(v, 0.0), reverse=True)
@@ -646,6 +697,42 @@ def _random_resilience_regularizer(G, low_layer_score=None):
     )
 
 
+def _bridge_resilience_regularizer(G):
+    """介数/桥接攻击正则：减少割点、桥边和边介数集中。"""
+    n = G.number_of_nodes()
+    m = G.number_of_edges()
+    if n <= 2:
+        return 0.0
+
+    try:
+        articulation_ratio = len(list(nx.articulation_points(G))) / n
+    except Exception:
+        articulation_ratio = 1.0
+
+    try:
+        bridge_ratio = len(list(nx.bridges(G))) / max(1, m)
+    except Exception:
+        bridge_ratio = 1.0
+
+    try:
+        edge_bc = list(nx.edge_betweenness_centrality(G).values())
+        if edge_bc:
+            max_bc = max(edge_bc)
+            mean_bc = sum(edge_bc) / len(edge_bc)
+            concentration = max_bc / max(mean_bc, 1e-9)
+            concentration_score = 1.0 / (1.0 + max(0.0, concentration - 1.0))
+        else:
+            concentration_score = 0.0
+    except Exception:
+        concentration_score = 0.0
+
+    return (
+        0.40 * (1.0 - articulation_ratio)
+        + 0.35 * (1.0 - bridge_ratio)
+        + 0.25 * concentration_score
+    )
+
+
 def _candidate_topology_score(G, attack_methods=None, seed=None, score_profile="balanced"):
     """综合拓扑筛选分数：平衡定向攻击、随机攻击和低度层自保。"""
     if attack_methods is None:
@@ -667,10 +754,18 @@ def _candidate_topology_score(G, attack_methods=None, seed=None, score_profile="
 
     low_layer_score = _low_layer_resilience_score(G)
     random_regularizer = _random_resilience_regularizer(G, low_layer_score=low_layer_score)
+    bridge_regularizer = _bridge_resilience_regularizer(G)
     if not aucs:
         score = 0.05 * low_layer_score + 0.05 * random_regularizer
     else:
-        targeted_methods = [m for m in ("degree", "betweenness", "pagerank", "eigenvector") if m in aucs]
+        targeted_methods = [
+            m for m in (
+                "degree", "betweenness", "pagerank", "eigenvector",
+                "adaptive_degree", "adaptive_betweenness", "adaptive_bridge",
+                "lookahead_gcc"
+            )
+            if m in aucs
+        ]
         if not targeted_methods:
             targeted_methods = list(aucs.keys())
 
@@ -680,35 +775,59 @@ def _candidate_topology_score(G, attack_methods=None, seed=None, score_profile="
         all_floor = min(aucs.values())
         all_mean = sum(aucs.values()) / len(aucs)
         random_score = aucs.get("random", sum(aucs.values()) / len(aucs))
+        bridge_methods = [
+            m for m in ("betweenness", "adaptive_betweenness", "adaptive_bridge", "lookahead_gcc")
+            if m in aucs
+        ]
+        if bridge_methods:
+            bridge_values = [aucs[m] for m in bridge_methods]
+            bridge_floor = min(bridge_values)
+            bridge_mean = sum(bridge_values) / len(bridge_values)
+        else:
+            bridge_floor = targeted_floor
+            bridge_mean = targeted_mean
 
         if score_profile == "targeted":
             score = (
-                0.55 * targeted_floor
-                + 0.25 * targeted_mean
+                0.48 * targeted_floor
+                + 0.22 * targeted_mean
                 + 0.10 * all_floor
                 + 0.06 * random_score
                 + 0.03 * random_regularizer
-                + 0.01 * low_layer_score
+                + 0.08 * bridge_regularizer
+                + 0.03 * low_layer_score
+            )
+        elif score_profile == "targeted_bridge":
+            score = (
+                0.35 * bridge_floor
+                + 0.20 * bridge_mean
+                + 0.15 * aucs.get("degree", targeted_floor)
+                + 0.10 * bridge_regularizer
+                + 0.10 * low_layer_score
+                + 0.07 * random_score
+                + 0.03 * random_regularizer
             )
         elif score_profile == "random":
             score = (
-                0.45 * random_score
-                + 0.20 * all_mean
-                + 0.15 * all_floor
-                + 0.10 * random_regularizer
-                + 0.06 * targeted_floor
-                + 0.03 * targeted_mean
-                + 0.01 * low_layer_score
+                0.52 * random_score
+                + 0.16 * all_mean
+                + 0.12 * all_floor
+                + 0.12 * random_regularizer
+                + 0.04 * targeted_floor
+                + 0.02 * bridge_regularizer
+                + 0.02 * low_layer_score
             )
         elif score_profile == "wgcc":
+            # 强化 random 攻击稳健性，避免过度偏向 degree 攻击而在 random 下崩溃
             score = (
-                0.30 * random_score
-                + 0.25 * targeted_floor
-                + 0.20 * all_mean
-                + 0.15 * all_floor
-                + 0.06 * random_regularizer
-                + 0.03 * targeted_mean
-                + 0.01 * low_layer_score
+                0.45 * random_score
+                + 0.15 * targeted_floor
+                + 0.15 * all_mean
+                + 0.10 * all_floor
+                + 0.08 * random_regularizer
+                + 0.02 * targeted_mean
+                + 0.02 * bridge_regularizer
+                + 0.03 * low_layer_score
             )
         else:
             # 验证结果显示 degree 已经领先，但 random/wgcc 会拖累综合表现；
@@ -720,7 +839,8 @@ def _candidate_topology_score(G, attack_methods=None, seed=None, score_profile="
                 + 0.15 * targeted_floor
                 + 0.04 * targeted_mean
                 + 0.01 * low_layer_score
-                + 0.05 * random_regularizer
+                + 0.03 * random_regularizer
+                + 0.02 * bridge_regularizer
             )
     return score, aucs, low_layer_score
 
@@ -733,6 +853,7 @@ def create_bimodal_adaptive_robust(
     attack_methods=None,
     score_profile="balanced",
     verbose=False,
+    num_score_seeds=3,
 ):
     """
     自适应鲁棒双峰构造：在固定 N/M 下搜索 hub 数量，优先选择多攻击 AUC 稳健的拓扑。
@@ -765,14 +886,68 @@ def create_bimodal_adaptive_robust(
 
     best = None
     search_results = []
+
+    base_seed = 0 if seed is None else seed
+    
+    def _average_score_over_seeds(graph_candidate, local_seed):
+        """对多个 seed 的评分取平均，降低单 seed 随机性带来的选择波动。"""
+        if num_score_seeds <= 1:
+            return _candidate_topology_score(
+                graph_candidate,
+                attack_methods=attack_methods,
+                seed=local_seed,
+                score_profile=score_profile,
+            )
+        total_score = 0.0
+        total_aucs = {}
+        total_low_layer = 0.0
+        valid_seeds = 0
+        for offset in range(num_score_seeds):
+            eval_seed = None if local_seed is None else local_seed + offset * 1000
+            score, aucs, low_layer_score = _candidate_topology_score(
+                graph_candidate,
+                attack_methods=attack_methods,
+                seed=eval_seed,
+                score_profile=score_profile,
+            )
+            total_score += score
+            total_low_layer += low_layer_score
+            for k, v in aucs.items():
+                total_aucs[k] = total_aucs.get(k, 0.0) + v
+            valid_seeds += 1
+        avg_score = total_score / valid_seeds
+        avg_aucs = {k: v / valid_seeds for k, v in total_aucs.items()}
+        avg_low_layer = total_low_layer / valid_seeds
+        return avg_score, avg_aucs, avg_low_layer
+
+    theoretical_candidate = create_bimodal_theoretical(n, m, seed=seed)
+    if theoretical_candidate is not None:
+        score, aucs, low_layer_score = _average_score_over_seeds(
+            theoretical_candidate, local_seed=base_seed
+        )
+        record = {
+            "hub_num": "theoretical",
+            "score": score,
+            "aucs": aucs,
+            "low_layer_score": low_layer_score,
+        }
+        search_results.append(record)
+        best = {"G": theoretical_candidate.copy(), **record}
+        if verbose:
+            auc_text = ", ".join(f"{k}={v:.4f}" for k, v in aucs.items())
+            print(
+                f"  hub_num={'theoretical':>3}: score={score:.4f}, "
+                f"low_layer={low_layer_score:.4f}, {auc_text}"
+            )
+
     for hub_num in hub_candidates:
         current_seed = None if seed is None else seed + hub_num
         G_candidate = create_bimodal_with_num_hubs(n, m, hub_num, seed=current_seed)
         if G_candidate is None:
             continue
 
-        score, aucs, low_layer_score = _candidate_topology_score(
-            G_candidate, attack_methods=attack_methods, seed=current_seed, score_profile=score_profile
+        score, aucs, low_layer_score = _average_score_over_seeds(
+            G_candidate, local_seed=current_seed
         )
         record = {
             "hub_num": hub_num,

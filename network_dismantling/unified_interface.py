@@ -280,6 +280,72 @@ def _random_dismantler(G: nx.Graph, seed: int = None, **kwargs) -> List[int]:
 
 
 # ---------------------------------------------------------------------------
+# Adaptive attacks (recompute priorities after each removal)
+# ---------------------------------------------------------------------------
+def _adaptive_sequence_by_score(G: nx.Graph, score_fn: Callable[[nx.Graph], Dict[int, float]]) -> List[int]:
+    H = G.copy()
+    sequence = []
+    while H.number_of_nodes() > 0:
+        scores = score_fn(H)
+        if scores:
+            node = max(H.nodes(), key=lambda v: (scores.get(v, 0.0), H.degree(v)))
+        else:
+            node = max(H.nodes(), key=lambda v: H.degree(v))
+        sequence.append(node)
+        H.remove_node(node)
+    return sequence
+
+
+@register_method("adaptive_degree")
+def _adaptive_degree_dismantler(G: nx.Graph, **kwargs) -> List[int]:
+    return _adaptive_sequence_by_score(G, lambda H: dict(H.degree()))
+
+
+@register_method("adaptive_betweenness")
+def _adaptive_betweenness_dismantler(G: nx.Graph, **kwargs) -> List[int]:
+    def score_fn(H: nx.Graph) -> Dict[int, float]:
+        if H.number_of_nodes() <= 2:
+            return dict(H.degree())
+        return nx.betweenness_centrality(H)
+
+    return _adaptive_sequence_by_score(G, score_fn)
+
+
+@register_method("adaptive_bridge")
+def _adaptive_bridge_dismantler(G: nx.Graph, **kwargs) -> List[int]:
+    def score_fn(H: nx.Graph) -> Dict[int, float]:
+        scores = {v: float(H.degree(v)) for v in H.nodes()}
+        for v in nx.articulation_points(H):
+            scores[v] = scores.get(v, 0.0) + H.number_of_nodes()
+        for u, v in nx.bridges(H):
+            scores[u] = scores.get(u, 0.0) + 0.5 * H.number_of_nodes()
+            scores[v] = scores.get(v, 0.0) + 0.5 * H.number_of_nodes()
+        return scores
+
+    return _adaptive_sequence_by_score(G, score_fn)
+
+
+@register_method("lookahead_gcc")
+def _lookahead_gcc_dismantler(G: nx.Graph, top_k: int = 8, **kwargs) -> List[int]:
+    H = G.copy()
+    sequence = []
+    while H.number_of_nodes() > 0:
+        candidates = sorted(H.nodes(), key=lambda v: H.degree(v), reverse=True)[:max(1, top_k)]
+        best_node = candidates[0]
+        best_lcc = float("inf")
+        for node in candidates:
+            T = H.copy()
+            T.remove_node(node)
+            lcc = max((len(c) for c in nx.connected_components(T)), default=0)
+            if lcc < best_lcc or (lcc == best_lcc and H.degree(node) > H.degree(best_node)):
+                best_lcc = lcc
+                best_node = node
+        sequence.append(best_node)
+        H.remove_node(best_node)
+    return sequence
+
+
+# ---------------------------------------------------------------------------
 # Brute Force (for small networks)
 # ---------------------------------------------------------------------------
 @register_method("brute_force")

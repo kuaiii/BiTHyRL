@@ -728,10 +728,10 @@ def plot_attack_steps_for_batches(attack_steps_data, save_dir, metric_type, atta
 def plot_metric_vs_attack_steps(attack_steps_data, save_dir, metric_type, attack_mode, batch_size, dataset_name, initial_nodes):
     """
     绘制指标值 vs 移除节点比例的折线图。
-    横坐标：removed_nodes_ratio = attack_step/initial_nodes
+    横坐标：removed_nodes_ratio（实际移除节点比例，来自 curve_data 中的 x_list）
     纵坐标：指标值（CCE/CSA/GCC/WCP）
     
-    注意：此函数会基于removed_nodes_ratio和指标值重新计算 R 值。
+    注意：此函数会基于实际移除节点比例和指标值重新计算 R 值。
     
     Args:
         attack_steps_data (dict): {method: [(x_list, y_list, steps_list, r_value), ...]} 每个方法对应多个batch的攻击步数数据
@@ -807,10 +807,10 @@ def plot_metric_vs_attack_steps(attack_steps_data, save_dir, metric_type, attack
             if len(y_list) == 0:
                 continue
             
-            # 计算removed_nodes_ratio = attack_step/initial_nodes
-            removed_ratio_list = [step / initial_nodes for step in steps_list]
+            # x_list 已经是实际移除节点比例，比 attack_step/initial_nodes 更准确
+            removed_ratio_list = list(x_list) if x_list else [step / initial_nodes for step in steps_list]
             
-            # 重新计算 R 值：基于removed_nodes_ratio和指标值
+            # 重新计算 R 值：基于实际移除节点比例和指标值
             if len(removed_ratio_list) > 1:
                 r_value = _nm_compute('r_value_interpolated', removed_ratio_list, y_list, num_points=101)
             else:
@@ -926,7 +926,7 @@ def plot_metric_vs_attack_steps_raw(attack_steps_data, save_dir, metric_type, at
     纵坐标：指标值（CCE/CSA/GCC/WCP）
     图像名：metric-attack_step
     
-    注意：此函数会基于removed_nodes_ratio (attack_step/initial_nodes) 和指标值重新计算 R 值。
+    注意：此函数会基于实际移除节点比例（来自 x_list）和指标值重新计算 R 值，即使横轴显示原始 attack_step。
     
     Args:
         attack_steps_data (dict): {method: [(x_list, y_list, steps_list, r_value), ...]} 每个方法对应多个batch的攻击步数数据
@@ -1002,10 +1002,10 @@ def plot_metric_vs_attack_steps_raw(attack_steps_data, save_dir, metric_type, at
             if len(y_list) == 0:
                 continue
             
-            # 计算removed_nodes_ratio = attack_step/initial_nodes
-            removed_ratio_list = [step / initial_nodes for step in steps_list]
+            # R 值应基于实际移除节点比例 x_list 计算，即使本图横轴用原始 attack_step
+            removed_ratio_list = list(x_list) if x_list else [step / initial_nodes for step in steps_list]
             
-            # 重新计算 R 值：基于removed_nodes_ratio和指标值
+            # 重新计算 R 值
             if len(removed_ratio_list) > 1:
                 r_value = _nm_compute('r_value_interpolated', removed_ratio_list, y_list, num_points=101)
             else:

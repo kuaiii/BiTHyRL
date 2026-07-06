@@ -464,3 +464,7 @@ Processing Topology: GtsCe...
 2026-01-30 08:56:41 - __main__ - ERROR - 加载图数据失败，程序退出
 2026-01-30 09:17:53 - __main__ - ERROR - 未找到数据集文件: BA-400.gml (已搜索 data/testdata 和 data/raw)
 2026-01-30 09:17:53 - __main__ - ERROR - 加载图数据失败，程序退出
+2026-07-06 00:52:24 - root - INFO - Logger initialized. Log file: logs\latest_run.log
+2026-07-06 00:52:24 - __main__ - INFO - 已加载数据集: Colt (节点数: 153, 边数: 177)
+2026-07-06 01:06:26 - root - INFO - Logger initialized. Log file: logs\latest_run.log
+2026-07-06 01:06:26 - __main__ - INFO - 已加载数据集: Colt (节点数: 153, 边数: 177)

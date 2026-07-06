@@ -33,6 +33,46 @@ import numpy as np
 
 logger = get_logger(__name__)
 
+def auto_select_unified_ppo_model(checkpoint_dir='src/train/v1/checkpoints'):
+    """
+    自动选择最优的 Unified-PPO checkpoint。
+    优先顺序：
+      1. 存在明确命名为 *_v5_val.pth 的模型（validation 最优）
+      2. 在指定目录中按 best_reward 选择最高的 v5/full 模型
+      3. 回退到 unified_ppo_agent.pth
+    Returns:
+        str or None: 选中的模型路径，不存在时返回 None
+    """
+    import glob
+    if not os.path.isdir(checkpoint_dir):
+        return None
+    # 优先固定命名
+    preferred = [
+        'unified_ppo_agent_v5_val.pth',
+        'unified_ppo_agent_v5_small.pth',
+        'unified_ppo_agent_full_v4.pth',
+        'unified_ppo_agent_full.pth',
+        'unified_ppo_agent.pth',
+    ]
+    for name in preferred:
+        path = os.path.join(checkpoint_dir, name)
+        if os.path.exists(path):
+            return path
+    # 兜底：找所有 unified_ppo_*.pth 中 best_reward 最高的
+    candidates = glob.glob(os.path.join(checkpoint_dir, 'unified_ppo_*.pth'))
+    best_path = None
+    best_reward = -float('inf')
+    for path in candidates:
+        try:
+            ck = torch.load(path, map_location='cpu', weights_only=False)
+            reward = ck.get('best_reward', -float('inf'))
+            if reward > best_reward:
+                best_reward = reward
+                best_path = path
+        except Exception:
+            continue
+    return best_path
+
 def extract_curve_data(curve_data, attack_steps_data):
     """
     从曲线数据中提取x、y和步数数据。
@@ -135,11 +175,9 @@ def process_metrics_from_manager(manager, metric_types, curves_data_by_metric,
             
             x_curve, y_curve, steps_curve = extract_curve_data(curve_data, attack_steps_data)
             
-            # 计算removed_nodes_ratio = attack_step/initial_nodes
-            removed_ratio_list = [step / initial_nodes for step in steps_curve] if steps_curve else x_curve
-            
-            # 计算R值（面积）：统一使用removed_nodes_ratio
-            r_val = _nm_compute('r_value_interpolated', removed_ratio_list, y_curve, num_points=101)
+            # 曲线数据中的 x_curve 已经是实际移除节点比例 (removed_nodes_ratio)，
+            # 比 attack_step/initial_nodes 更准确（后者会把攻击已不存在节点的步数也计入 x 轴）。
+            r_val = _nm_compute('r_value_interpolated', x_curve, y_curve, num_points=101)
             
             # 保存曲线数据
             if name not in curves_data_by_metric[metric_type]:
@@ -230,19 +268,31 @@ def parse_arguments():
     parser.add_argument('--batch', '-b', type=int, default=1, dest='batch_size',
                         help='仿真批次数 (默认: 1)')
     parser.add_argument('--attack', '-a', type=str, default='random', 
-                        choices=['random', 'degree', 'betweenness', 'pagerank', 'eigenvector', 'bruteforce', 'wgcc'], 
+                        choices=[
+                            'random', 'degree', 'betweenness', 'pagerank', 'eigenvector',
+                            'adaptive_degree', 'adaptive_betweenness', 'adaptive_bridge',
+                            'lookahead_gcc', 'bruteforce', 'wgcc'
+                        ], 
                         help='攻击模式 (默认: random)。wgcc=同时跑 degree 与 random，对 GCC/CSA/CCE/WCP 求加权 (0.5*degree+0.5*random)，结果存 results/{dataset}/wgcc/')
     parser.add_argument('--debug', action='store_true', 
                         help='启用调试日志')
     
     parser.add_argument('--model', '-m', type=str, default=None, dest='gnn_model',
                         help='GNN 模型路径。默认自动搜索: curriculum_final > curriculum_phase3 > deep_gat > ...')
-    parser.add_argument('--unified-ppo-model', type=str, default=None,
-                        help='Unified PPO 模型路径。指定后将在对比中加入 Unified-PPO 方法')
+    parser.add_argument('--unified-ppo-model', type=str, default='auto',
+                        help='Unified PPO 模型路径。auto 时自动搜索 src/train/v1/checkpoints/ 下最优 checkpoint (默认: auto)')
     parser.add_argument('--unified-ppo-B', type=int, default=3,
                         help='Unified PPO 拓扑微调预算 (默认 3)')
     parser.add_argument('--unified-ppo-M', type=int, default=50,
                         help='Unified PPO 候选边池大小 (默认 50)')
+    parser.add_argument('--unified-ppo-on-bit', action='store_true', default=True,
+                        help='Unified PPO 是否对 BiT-HyRL 双峰拓扑进行微调，并将结果作为 BiT-HyRL 主方法 (默认: True)')
+    parser.add_argument('--no-unified-ppo-on-bit', dest='unified_ppo_on_bit', action='store_false',
+                        help='禁用 Unified PPO 对 BiT-HyRL 拓扑的微调，仅保留独立 Unified-PPO 方法')
+    parser.add_argument('--unified-ppo-include-base', action='store_true', default=False,
+                        help='保留未经过 PPO 微调的双峰拓扑作为 BiT-HyRL-base 对照方法 (默认: False)')
+    parser.add_argument('--unified-ppo-use-gnn-controller', action='store_true', default=False,
+                        help='BiT-HyRL 使用 PPO 微调后的拓扑，但控制器仍用 GNN 选择（用于分离拓扑微调与控制器选择效果）(默认: False)')
     parser.add_argument('--bimodal-strategy', type=str, default='adaptive_robust',
                         choices=['adaptive_robust', 'theoretical', 'exact'],
                         help='BiT-HyRL 拓扑构造策略 (默认: adaptive_robust)')
@@ -250,10 +300,10 @@ def parse_arguments():
                         help='adaptive_robust 的最大 hub 比例 (默认: 0.25)')
     parser.add_argument('--bimodal-samples', type=int, default=12,
                         help='adaptive_robust 的 hub 数量采样数 (默认: 12)')
-    parser.add_argument('--bimodal-attacks', type=str, default='degree,betweenness,random',
-                        help='adaptive_robust 拓扑筛选使用的攻击集合')
+    parser.add_argument('--bimodal-attacks', type=str, default='auto',
+                        help='adaptive_robust 拓扑筛选使用的攻击集合，auto 会随 --attack 自适应选择')
     parser.add_argument('--bimodal-score-profile', type=str, default='auto',
-                        choices=['auto', 'balanced', 'targeted', 'random', 'wgcc'],
+                        choices=['auto', 'balanced', 'targeted', 'targeted_bridge', 'random', 'wgcc'],
                         help='adaptive_robust 拓扑评分权重配置 (默认: auto)')
     
     # 高级参数（向后兼容）
@@ -383,6 +433,14 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
     current_attack_mode = args.attack
     is_wgcc_run = (current_attack_mode == 'wgcc')
     
+    # 解析 Unified-PPO 模型路径
+    unified_ppo_model_path = args.unified_ppo_model
+    if unified_ppo_model_path == 'auto':
+        unified_ppo_model_path = auto_select_unified_ppo_model()
+    elif unified_ppo_model_path is not None and not os.path.exists(unified_ppo_model_path):
+        logger.warning(f"指定的 Unified-PPO 模型不存在: {unified_ppo_model_path}，将禁用 Unified-PPO")
+        unified_ppo_model_path = None
+    
     metric_types = ['gcc', 'csa', 'cce', 'wcp']
     experiment_base_dir = os.path.join('results', dataset_name, current_attack_mode, str(experiment_id))
     if not os.path.exists(experiment_base_dir):
@@ -429,34 +487,14 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
     area_values_by_metric = {}
     attack_steps_by_metric = {}
     
+    # 方法名列表（动态包含可选对照）
+    method_names = ["Baseline", "GA+RCP", "GA+RL", "Onion+RL", "ROMEN+RL", "UNITY+RL", "BiT-HyRL", "FRED-ABL", "QDLM", "Unified-PPO"]
+    if args.unified_ppo_include_base:
+        method_names.append("BiT-HyRL-base")
+    
     for metric_type in metric_types:
-        x_values_by_metric[metric_type] = {
-            "Baseline": [],
-            "GA+RCP": [],
-            "GA+RL": [],
-            "Onion+RL": [],
-            "ROMEN+RL": [],
-            "UNITY+RL": [],
-            "BiT-HyRL": [],
-            "FRED-ABL": [],
-            # "TEAM": [],  # TEAM 方法已禁用
-            "QDLM": [],
-            "Unified-PPO": []
-        }
-        
-        r_values_by_metric[metric_type] = {
-            "Baseline": [],
-            "GA+RCP": [],
-            "GA+RL": [],
-            "Onion+RL": [],
-            "ROMEN+RL": [],
-            "UNITY+RL": [],
-            "BiT-HyRL": [],
-            "FRED-ABL": [],
-            # "TEAM": [],  # TEAM 方法已禁用
-            "QDLM": [],
-            "Unified-PPO": []
-        }
+        x_values_by_metric[metric_type] = {m: [] for m in method_names}
+        r_values_by_metric[metric_type] = {m: [] for m in method_names}
         
         # 初始化曲线数据、崩溃点数据、面积数据和攻击步数数据
         curves_data_by_metric[metric_type] = {}
@@ -503,7 +541,11 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         # 4. ROMEN
         start_time = time.time()
         with algorithm_timer("ROMEN", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
-            G_ROMEM = nc.construct(G, algorithm='ROMEN', seed=batch_seed, verbose=(ijk == 0))
+            # 降低 ROMEN 搜索强度以加速实验；作为对比基线仍保持一定优化能力
+            G_ROMEM = nc.construct(
+                G, algorithm='ROMEN', seed=batch_seed,
+                population_size=2, generations=20, verbose=(ijk == 0)
+            )
         execution_times.setdefault("Construct_ROMEN", []).append(time.time() - start_time)
 
         # 5. UNITY
@@ -540,16 +582,43 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         start_time = time.time()
         with algorithm_timer("Bimodal", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
             if args.bimodal_strategy == 'adaptive_robust':
-                bimodal_attacks = [m.strip() for m in args.bimodal_attacks.split(',') if m.strip()]
                 if args.bimodal_score_profile == 'auto':
-                    if current_attack_mode in ('random', 'wgcc'):
+                    if current_attack_mode == 'random':
                         score_profile = 'wgcc'
-                    elif current_attack_mode in ('degree', 'target', 'betweenness'):
+                    elif current_attack_mode == 'wgcc':
+                        score_profile = 'wgcc'
+                    elif current_attack_mode in ('betweenness', 'adaptive_betweenness', 'adaptive_bridge', 'lookahead_gcc'):
+                        score_profile = 'targeted_bridge'
+                    elif current_attack_mode in (
+                        'degree', 'target', 'pagerank', 'eigenvector', 'adaptive_degree'
+                    ):
                         score_profile = 'targeted'
                     else:
                         score_profile = 'balanced'
                 else:
                     score_profile = args.bimodal_score_profile
+                if args.bimodal_attacks == 'auto':
+                    if current_attack_mode == 'random':
+                        bimodal_attacks = ['degree', 'random']
+                    elif score_profile == 'random':
+                        bimodal_attacks = ['random']
+                    elif score_profile == 'wgcc':
+                        bimodal_attacks = ['degree', 'random']
+                    elif score_profile == 'targeted_bridge':
+                        bimodal_attacks = [
+                            'betweenness', 'adaptive_betweenness',
+                            'adaptive_bridge', 'lookahead_gcc',
+                            'degree', 'random'
+                        ]
+                    elif score_profile == 'targeted':
+                        bimodal_attacks = [
+                            'degree', 'betweenness', 'adaptive_degree',
+                            'adaptive_bridge', 'lookahead_gcc'
+                        ]
+                    else:
+                        bimodal_attacks = ['degree', 'betweenness', 'random', 'adaptive_bridge']
+                else:
+                    bimodal_attacks = [m.strip() for m in args.bimodal_attacks.split(',') if m.strip()]
                 G_BiT = create_bimodal_adaptive_robust(
                     G,
                     seed=batch_seed,
@@ -558,6 +627,7 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
                     attack_methods=bimodal_attacks,
                     score_profile=score_profile,
                     verbose=(ijk == 0 and args.debug),
+                    num_score_seeds=3,
                 )
             elif args.bimodal_strategy == 'exact':
                 hub_num = max(1, int(round(node_num * args.hub_ratio)))
@@ -569,11 +639,15 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         # 9. Unified-PPO (按 batch seed 保持可复现)
         G_unified_ppo = None
         unified_ppo_centers = None
-        if args.unified_ppo_model is not None and os.path.exists(args.unified_ppo_model):
+        G_BiT_ppo = None
+        bit_ppo_centers = None
+        if unified_ppo_model_path is not None and os.path.exists(unified_ppo_model_path):
             start_time = time.time()
             try:
                 with algorithm_timer("Unified-PPO", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
-                    ck = torch.load(args.unified_ppo_model, map_location='cpu', weights_only=False)
+                    if ijk == 0:
+                        logger.info(f"使用 Unified-PPO 模型: {unified_ppo_model_path}")
+                    ck = torch.load(unified_ppo_model_path, map_location='cpu', weights_only=False)
                     cfg = ck.get('model_config', {})
                     in_channels = cfg.get('in_channels', 259)
                     hidden_channels = cfg.get('hidden_channels', 128)
@@ -586,16 +660,32 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
                     )
                     ppo_model.load_state_dict(ck['model_state_dict'])
                     ppo_model = ppo_model.cuda() if torch.cuda.is_available() else ppo_model
+                    
+                    # 独立 Unified-PPO 方法：对原始图 G 进行拓扑微调
                     result = unified_solve(
                         G, ppo_model, B_budget=args.unified_ppo_B, k_ratio=cover_rate,
                         embed_dim=in_channels - 3, seed=batch_seed, deterministic=True
                     )
                     G_unified_ppo = result['G_final']
                     unified_ppo_centers = result['controllers']
+                    
+                    # BiT-HyRL + PPO：对双峰拓扑 G_BiT 进行拓扑微调，作为 BiT-HyRL 主方法
+                    if args.unified_ppo_on_bit and G_BiT is not None:
+                        with algorithm_timer("BiT-HyRL+PPO", verbose=(ijk == 0), batch_info=batch_info if ijk == 0 else None):
+                            result_bit = unified_solve(
+                                G_BiT, ppo_model, B_budget=args.unified_ppo_B, k_ratio=cover_rate,
+                                embed_dim=in_channels - 3, seed=batch_seed, deterministic=True
+                            )
+                            G_BiT_ppo = result_bit['G_final']
+                            bit_ppo_centers = result_bit['controllers']
             except Exception as e:
                 logger.warning(f"Unified-PPO 推理失败: {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
                 G_unified_ppo = None
                 unified_ppo_centers = None
+                G_BiT_ppo = None
+                bit_ppo_centers = None
             execution_times.setdefault("Construct_Unified_PPO", []).append(time.time() - start_time)
         
         # 其它方法
@@ -618,6 +708,8 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         G_TEAM = None  # TEAM 方法已禁用
         
         # 将拓扑组织成字典
+        # 若启用 Unified-PPO on BiT，则用微调后的 G_BiT_ppo 作为 BiT-HyRL 主方法
+        G_BiT_for_method = G_BiT_ppo if G_BiT_ppo is not None else G_BiT
         all_G = {
             "G": G,   # 原始
             "G_BA": G_BA, # 1. BA Network
@@ -627,7 +719,8 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
             "G_UNITY": G_UNITY,  # 5. UNITY
             "G_FRED_ABL": G_FRED_ABL, # 6. FRED-ABL
             "G_QDLM": G_QDLM, # 7. QDLM
-            "G_BiT": G_BiT, # 8. Bimodal
+            "G_BiT": G_BiT_for_method, # 8. Bimodal（PPO 微调后）
+            "G_BiT_base": G_BiT if args.unified_ppo_include_base else None, # 8b. 可选对照
             "G_unified_ppo": G_unified_ppo, # 9. Unified-PPO
             # 其它方法
             "G_GA": G_GA, # GA 优化
@@ -654,10 +747,13 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
                 ("UNITY+RL", G, G_UNITY),      # 原始→UNITY优化
                 ("FRED-ABL", G, G_FRED_ABL),   # 原始→FRED-ABL优化
                 ("QDLM", G, G_QDLM),           # 原始→QDLM优化
-                ("BiT-HyRL", G, G_BiT),        # 原始→Bimodal拓扑
+                ("BiT-HyRL", G, G_BiT_for_method),  # 原始→Bimodal拓扑（PPO 微调后）
+                ("BiT-HyRL-base", G, G_BiT) if args.unified_ppo_include_base else None,
                 ("Unified-PPO", G, G_unified_ppo), # 原始→Unified-PPO拓扑微调
                 # ("TEAM", G, G_TEAM),         # 原始→TEAM优化（已禁用）
             ]
+            # 过滤掉 None 项
+            method_graph_map = [m for m in method_graph_map if m is not None]
             
             controller_num = ceil(node_num * cover_rate)
             
@@ -682,6 +778,8 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         manager = ControllerManager(
             all_G, cover_rate, node_num, dataset_name, experiment_id,
             unified_ppo_centers=unified_ppo_centers,
+            bit_ppo_centers=bit_ppo_centers,
+            bit_use_gnn_controller=args.unified_ppo_use_gnn_controller,
             bit_hyrl_episodes=args.episodes,
             bit_hyrl_metric_type=args.metric_type,
             bit_hyrl_use_node2vec=args.use_node2vec,
@@ -698,7 +796,6 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
         if is_wgcc_run:
             # WGCC 作为攻击方式：degree 与 random 各跑一次，对 GCC/CSA/CCE/WCP 四种指标求加权 (0.5*degree+0.5*random)，保存并画指标-攻击步数图
             internal_metric_types = ['gcc', 'csa', 'cce', 'wcp']
-            method_names = ["Baseline", "GA+RCP", "GA+RL", "Onion+RL", "ROMEN+RL", "UNITY+RL", "BiT-HyRL", "FRED-ABL", "QDLM", "Unified-PPO"]
             x_degree = {mt: {m: [] for m in method_names} for mt in internal_metric_types}
             r_degree = {mt: {m: [] for m in method_names} for mt in internal_metric_types}
             x_random = {mt: {m: [] for m in method_names} for mt in internal_metric_types}
@@ -810,14 +907,14 @@ def run_simulation_batch(G, args, experiment_id, dataset_name):
                 for batch_data in batch_data_list:
                     if len(batch_data) >= 3:
                         x_list, y_list, steps_list = batch_data[0], batch_data[1], batch_data[2]
-                        removed_ratio_list = [step / node_num for step in steps_list] if steps_list else x_list
-                        if y_list and removed_ratio_list:
+                        # x_list 已经是实际移除节点比例，比 steps/node_num 更准确
+                        if y_list and x_list:
                             max_y = max(y_list)
                             threshold_y = max_y * 0.2
                             collapse_x = 1.0
                             for i, y_val in enumerate(y_list):
                                 if y_val <= threshold_y:
-                                    collapse_x = removed_ratio_list[i] if i < len(removed_ratio_list) else 1.0
+                                    collapse_x = x_list[i] if i < len(x_list) else 1.0
                                     break
                             collapse_points_from_area[method].append(collapse_x)
             if collapse_points_from_area:

@@ -183,6 +183,7 @@ def calculate_unified_reward(
     w_degree_std=0.03,
     w_algebraic_connectivity=0.08,
     focus_attacks=None,
+    reward_profile=None,
 ):
     """
     计算统一奖励。
@@ -211,7 +212,28 @@ def calculate_unified_reward(
     if not controllers or G_final.number_of_nodes() == 0:
         return 0.0
 
-    if attack_methods is None:
+    if reward_profile == "wgcc":
+        if attack_methods is None:
+            attack_methods = ['degree', 'random']
+        aggregation = 'mean'
+        w_gcc = max(w_gcc, 0.65)
+        w_disp = max(w_disp, 0.20)
+        use_topology_reward = True
+        w_topo = max(w_topo, 0.12)
+    elif reward_profile == "targeted_bridge":
+        if attack_methods is None:
+            attack_methods = ['betweenness', 'adaptive_betweenness', 'adaptive_bridge', 'lookahead_gcc', 'degree']
+        aggregation = 'min'
+        w_gcc = max(w_gcc, 0.65)
+        w_disp = max(w_disp, 0.20)
+        use_topology_reward = True
+        w_topo = max(w_topo, 0.25)
+        w_edge_betweenness_max = max(w_edge_betweenness_max, 0.14)
+        w_edge_betweenness_std = max(w_edge_betweenness_std, 0.08)
+        w_algebraic_connectivity = max(w_algebraic_connectivity, 0.10)
+        if focus_attacks is None:
+            focus_attacks = ['betweenness', 'adaptive_bridge', 'lookahead_gcc']
+    elif attack_methods is None:
         attack_methods = ADVERSARIAL_ATTACK_METHODS
 
     # 课程 / 自适应聚合

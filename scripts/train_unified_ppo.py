@@ -233,6 +233,9 @@ def parse_args():
     parser.add_argument('--attack-ratio', type=float, default=0.15)
     parser.add_argument('--attack-methods', type=str, default='degree,betweenness,pagerank,eigenvector,random',
                         help='训练时使用的攻击方法列表，逗号分隔')
+    parser.add_argument('--reward-profile', type=str, default=None,
+                        choices=['wgcc', 'targeted_bridge'],
+                        help='奖励预设：wgcc 或 targeted_bridge。默认保持手动 attack-methods 配置')
     parser.add_argument('--sample-methods', type=int, default=4,
                         help='每次奖励计算随机采样的攻击方法数 (None=全部)')
     parser.add_argument('--aggregation', type=str, default='min', choices=['min', 'mean'])
@@ -266,6 +269,7 @@ def main():
     print(f"M-candidates: {args.M_candidates}, LR: {args.lr}")
     print(f"Data: nodes {args.min_nodes}-{args.max_nodes}, collect/epoch {args.collect_per_epoch}")
     print(f"Attack methods: {args.attack_methods}, sample: {args.sample_methods}")
+    print(f"Reward profile: {args.reward_profile or 'manual'}")
     print("=" * 60)
 
     if args.use_synthetic:
@@ -344,6 +348,7 @@ def main():
             sample_methods=args.sample_methods,
             use_curriculum=args.use_curriculum,
             use_adaptive_aggregation=args.use_adaptive_aggregation,
+            reward_profile=args.reward_profile,
             epoch=epoch, total_epochs=total_epochs,
         )
 
