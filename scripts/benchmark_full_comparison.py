@@ -156,6 +156,24 @@ def find_run_ids(base_dir, expected_count=None):
     return ids
 
 
+def run_has_repeats(exp_dir, attack, expected_repeats):
+    """检查某实验目录是否已有 expected_repeats 次重复的完整结果。"""
+    area_file = exp_dir / "gcc" / "area" / f"area_values_{attack}_gcc.csv"
+    if not area_file.exists():
+        return False
+    try:
+        with open(area_file, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                batch_cols = [k for k in row if k.startswith("Batch_")]
+                if len(batch_cols) >= expected_repeats:
+                    return True
+                return False
+    except Exception:
+        return False
+    return False
+
+
 def read_comprehensive(csv_path, attack):
     """读取 comprehensive_metrics.csv，返回 {method: {metric: value}}。"""
     if not csv_path.exists():
@@ -255,18 +273,15 @@ def main():
             key = f"{dataset}/{attack}"
             base_dir = Path("results") / dataset / attack
 
-            # 检查是否已有结果（用于断点续跑）
-            existing = find_run_ids(base_dir)
-            if cfg["skip_existing"] and existing:
-                latest = base_dir / str(existing[-1])
-                comp = latest / "comprehensive_metrics.csv"
-                if comp.exists():
-                    log(f"SKIP ({done}/{total}): {key} 已存在 run_id={existing[-1]}")
-                    run_id = existing[-1]
-                else:
-                    run_id = None
-            else:
-                run_id = None
+            # 检查是否已有足够重复次数的结果（用于断点续跑）
+            run_id = None
+            if cfg["skip_existing"]:
+                for rid in reversed(find_run_ids(base_dir)):
+                    cand = base_dir / str(rid)
+                    if (cand / "comprehensive_metrics.csv").exists() and run_has_repeats(cand, attack, cfg["repeats"]):
+                        log(f"SKIP ({done}/{total}): {key} 已存在 run_id={rid} 且满足 {cfg['repeats']} 次重复")
+                        run_id = rid
+                        break
 
             if run_id is None:
                 if args.dry_run:
@@ -296,7 +311,14 @@ def main():
 
             # 汇总每个 method 的指标
             for method in comp:
-                for metric in ["R", "CSA", "H_C", "WCP"]:
+                # R 使用 area_values 中的每次重复值，可计算标准差
+                if method in area_gcc and area_gcc[method]:
+                    for val in area_gcc[method]:
+                        summary[(dataset, attack, "R")][method].append(val)
+                else:
+                    summary[(dataset, attack, "R")][method].append(comp[method].get("R", float("nan")))
+                # CSA/H_C/WCP 仅有 comprehensive 平均值
+                for metric in ["CSA", "H_C", "WCP"]:
                     summary[(dataset, attack, metric)][method].append(comp[method].get(metric, float("nan")))
                 # 拓扑属性只取一次
                 summary[(dataset, attack, "Nodes")][method].append(comp[method].get("Nodes"))
