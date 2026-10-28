@@ -50,6 +50,7 @@ __all__ = [
     "theory_k_max",
     "residual_cap",
     "applicability",
+    "max_bimodal_hubs",
     "construct_bimodal_sequence",
     "repair_topology",
     "build_bimodal",
@@ -96,16 +97,31 @@ def residual_cap(n: int, m: int, n_hubs: int = 1, k_min: int = 2) -> int:
     return max(0, min(cap_residual, cap_budget, n - 1))
 
 
-def applicability(n: int, m: int, k_min: int = 2) -> Dict[str, float]:
-    """判断单 hub 双峰理论先验在给定 (N, M) 下是否可实现。
+def applicability(n: int, m: int, k_min: int = 2, mu_target: float = 3.0) -> Dict[str, float]:
+    """判断单 hub 双峰理论先验在给定 (N, M) 下是否**真正可用**（不只是可构造）。
 
-    单 hub 可行 ⟺ A·N^(2/3) ≤ M − N + 1（(★) 在 n_h=1 的情形）。
-    把 M = <k>N/2 代入并忽略 O(1) 项，得闭式阈值
+    这里有**两道**门槛，第二道才是决定性的：
 
-        N ≳ N_min = [ A(<k>) / (<k>/2 − 1) ]³                    (◆)
+    **门槛一（可构造，早期判据）**
+    单 hub 可行 ⟺ A·N^(2/3) ≤ M − N + 1（(★) 在 n_h=1 的情形）。把 M = <k>N/2
+    代入并忽略 O(1) 项得 N ≳ N_min = [A/(<k>/2−1)]³。它只保证残余层能连通。
 
-    即：**书中双峰最优构造只对"足够大且足够稠密"的网络可行**；<k> 越接近 2，
-    N_min 增长得越陡（<k>=2.31 时 N_min≈1.4×10³，<k>=2.59 时≈3.2×10²）。
+    **门槛二（可用，本文新增）**
+    定向攻击的代价由**残余层平均度**决定（书 7.65 的 $f^{target}=r+(1-r)(1-1/(k_{min}-1))$）：
+
+        mu ≡ 2(M − k_max)/(N − 1) ≈ <k> − 2A·N^(-1/3)
+
+    mu = 2 时残余层恰是一个环，$f^{target}=r\\to 0$，**单 hub 一击即溃**——这正是
+    实验里 GtsCe 在 n_h=1 处 $R_{targeted}$ 只有 0.086 的原因。要求残余层自己还能
+    扛住随机失效（$f'=1-1/(k_{min}-1)\\ge 1/2$）即 mu ≥ 3，等价于
+
+        <k> ≥ 3 + 2A·N^(-1/3)  ⟺  N ≥ N_min' = [2A/(<k> − 3)]³          (◆')
+
+    **(◆') 的直接推论：<k> ≤ 3 的网络不存在理论双峰解，与 N 多大无关。**
+    五张真实 SDN 拓扑里四张 <k> < 3，第五张（Chinanet，<k>=3.14）给出
+    N_min'≈5×10⁴ ≫ N=42。所以真实网络**在结构上就不可能**承载理论双峰，
+    这解释了原论文"训练集正常、真实网络全面崩塌"，也把"改用类双峰"从工程妥协
+    升级为逻辑必然。
     """
     avg_k = 2.0 * m / n
     A = coef_A(avg_k) if avg_k > 1 else float("inf")
@@ -120,8 +136,15 @@ def applicability(n: int, m: int, k_min: int = 2) -> Dict[str, float]:
     elif k_theory_raw > cap1:
         clamp = "residual"
     feasible = clamp == "none"
+
+    # 门槛二：残余层平均度（用实际可实现的 k_max，被截断时按截断值算）
+    k_real = min(k_theory_raw, cap1, n - 1)
+    mu_residual = 2.0 * (m - k_real) / max(n - 1, 1) if k_real > 0 else 0.0
+
     slope = avg_k / 2.0 - 1.0
     n_min = float("inf") if slope <= 0 else (A / slope) ** 3
+    slope2 = avg_k - mu_target
+    n_min_res = float("inf") if slope2 <= 0 else (2.0 * A / slope2) ** 3
     # 在 (★) 下允许的最大 hub 数：k_max ≥ 2 至少需 n_h ≤ (M − N)/1 + 1
     n_h_max = max(1, m - n + 2)
     return {
@@ -134,22 +157,51 @@ def applicability(n: int, m: int, k_min: int = 2) -> Dict[str, float]:
         "k_max_cap_single_hub": cap1,
         "clamp": clamp,
         "single_hub_feasible": feasible,
+        "mu_residual": mu_residual,
+        "residual_layer_robust": bool(mu_residual >= mu_target),
+        "usable": bool(feasible and mu_residual >= mu_target),
         "n_min_theory": n_min,
         "n_over_n_min": n / n_min if math.isfinite(n_min) else float("inf"),
+        "n_min_residual": n_min_res,
+        "n_over_n_min_residual": n / n_min_res if math.isfinite(n_min_res) else float("inf"),
         "k_min": k_min,
         "n_hubs_max": n_h_max,
     }
 
 
+def max_bimodal_hubs(n: int, m: int, k_min: int = 2) -> int:
+    """类双峰族 $B(n_h)$ 的**上界**：最大的 n_h，使构造仍保持严格双峰形态。
+
+    两条约束同时收紧：
+    * 残差约束 (★) 让 $k_{\\max}$ 随 $n_h$ 递减；
+    * 双峰形态要求 $k_{\\max} > \\max_i k^{low}_i$。
+    当 $n_h$ 大到 $k_{\\max}$ 与低度层最高度相等时，"双峰"退化为单峰（近正则图）。
+    这个上界是族的内生边界，与 $N_{\\min}$ 一起构成"范围"的两端。
+    """
+    upper = min(n - 3, m - n + 2)
+    best = 1
+    for n_h in range(1, max(upper, 1) + 1):
+        spec = construct_bimodal_sequence(n, m, n_hubs=n_h, k_min=k_min)
+        if not spec.feasible:
+            break
+        best = n_h
+    return best
+
+
 def theory_applicability_report(
-    graphs: Dict[str, Tuple[int, int]], k_min: int = 2
+    graphs: Dict[str, Tuple[int, int]], k_min: int = 2, mu_target: float = 3.0
 ) -> List[Dict[str, object]]:
     """批量产出适用范围表（供文档与脚本直接引用）。"""
     rows = []
     for name, (n, m) in graphs.items():
-        info = applicability(n, m, k_min=k_min)
+        info = applicability(n, m, k_min=k_min, mu_target=mu_target)
         info["name"] = name
-        info["regime"] = "理论区内" if info["single_hub_feasible"] else "理论区外"
+        if not info["single_hub_feasible"]:
+            info["regime"] = "不可构造"
+        elif not info["residual_layer_robust"]:
+            info["regime"] = "可构造但不可用"
+        else:
+            info["regime"] = "理论区内"
         rows.append(info)
     return rows
 
@@ -279,6 +331,16 @@ def construct_bimodal_sequence(
             break
         base = low_total // n_low
         rem = low_total % n_low
+        # 双峰形态要求 hub 严格高于低度层最高度；否则退化为单峰（近正则），
+        # 此时"双峰"这个名字已经名不副实，应当拒绝而不是返回一个假双峰。
+        if k_max <= base + (1 if rem > 0 else 0):
+            spec.feasible = False
+            spec.strategy = "degenerate"
+            spec.notes.append(
+                f"n_h={n_hubs} 时 k_max={k_max} 不高于低度层最高度 "
+                f"{base + (1 if rem > 0 else 0)}，双峰退化为单峰"
+            )
+            return spec
         seq = [k_max] * n_hubs + [base + 1] * rem + [base] * (n_low - rem)
         assert sum(seq) == 2 * m, "度序列和必须等于 2M"
         if _is_graphical(seq):
@@ -449,7 +511,163 @@ def _connect_by_swaps(G: nx.Graph, max_attempts: int = 20000) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 4. 生成图
+# 4. 生成图：确定性"环 + 弦"实现（主路径）
+# ---------------------------------------------------------------------------
+
+def _allocate_hub_edges(
+    low_deg: Sequence[int], n_hubs: int, k_max: int, k_min: int, rng: random.Random
+) -> Optional[List[int]]:
+    """把 $n_h k_{\\max}$ 条 hub 边**均摊**到低度节点上。
+
+    返回 ``a[i]`` = 低度节点 i 连到 hub 层的边数。约束
+
+        a[i] <= min(n_hubs, low_deg[i] - k_min)      （残余层内部度 >= k_min）
+        Σ a[i] = n_hubs · k_max                       （hub 层总度精确）
+
+    分配方式是"每轮每个节点至多 +1"，因此 a 尽可能是 0/1 二值——这正是双峰语义
+    要求的样子（残余层几乎全在 k_low，只有极少数节点多挂一条 hub 边）。
+    """
+    n_low = len(low_deg)
+    cap = [max(0, min(n_hubs, d - k_min)) for d in low_deg]
+    need = n_hubs * k_max
+    if sum(cap) < need:
+        return None
+    a = [0] * n_low
+    order = sorted(range(n_low), key=lambda i: -cap[i])
+    rng.shuffle(order)
+    order.sort(key=lambda i: -cap[i])
+    while need > 0:
+        progressed = False
+        for i in order:
+            if need == 0:
+                break
+            if a[i] < cap[i]:
+                a[i] += 1
+                need -= 1
+                progressed = True
+        if not progressed:
+            return None
+    return a
+
+
+def _ring_plus_chords(
+    inner_deg: Sequence[int], rng: random.Random, max_tries: int = 400
+) -> Optional[nx.Graph]:
+    """生成一个**连通、最小度 >= 2、度序列精确等于 inner_deg** 的简单图。
+
+    当残余层边数接近下限（$e_{ll}\\gtrsim n_{low}$）时，它的结构必然是
+    "一个环 + 少量弦"，Havel–Hakimi 反而给出多个不相交的环。所以这里直接从
+    环出发：先放一个哈密顿环（每个节点度 2，天然连通），再把剩余的
+    $d_i-2$ 个 stub 随机配对成弦。
+
+    弦配对用"随机重排 + 冲突检测"，因为额外 stub 总数很小
+    （$2(e_{ll}-n_{low})$），几百次重试足够；失败返回 None 由调用方回落。
+    """
+    n = len(inner_deg)
+    if n < 3 or any(d < 2 for d in inner_deg):
+        return None
+    extra = [int(d) - 2 for d in inner_deg]
+    if any(e < 0 or e > n - 3 for e in extra) or sum(extra) % 2:
+        return None
+
+    perm = list(range(n))
+    rng.shuffle(perm)
+    G = nx.Graph()
+    G.add_nodes_from(range(n))
+    for t in range(n):
+        G.add_edge(perm[t], perm[(t + 1) % n])
+
+    stubs: List[int] = []
+    for i in range(n):
+        stubs.extend([i] * extra[i])
+    if not stubs:
+        return G
+
+    base_edges = {frozenset(e) for e in G.edges()}
+    for _ in range(max_tries):
+        rng.shuffle(stubs)
+        add, seen, ok = [], set(), True
+        for t in range(0, len(stubs), 2):
+            u, v = stubs[t], stubs[t + 1]
+            key = frozenset((u, v))
+            if u == v or key in base_edges or key in seen:
+                ok = False
+                break
+            seen.add(key)
+            add.append((u, v))
+        if ok:
+            G.add_edges_from(add)
+            return G
+    return None
+
+
+def _shuffle_hub_neighbors(
+    G: nx.Graph, hubs: Sequence[int], n_swaps: int, rng: random.Random
+) -> int:
+    """在 hub 之间交换邻居：保持每个 hub 的度不变，但打散"某个 hub 只连环上一段"的
+    局部性（否则 hub 变成局部聚合器，平均最短路被人为拉长/拉短）。"""
+    done = 0
+    if len(hubs) < 2:
+        return 0
+    for _ in range(n_swaps):
+        h1, h2 = rng.sample(list(hubs), 2)
+        n1, n2 = list(G.neighbors(h1)), list(G.neighbors(h2))
+        if not n1 or not n2:
+            continue
+        u, v = rng.choice(n1), rng.choice(n2)
+        if u == v or G.has_edge(h1, v) or G.has_edge(h2, u):
+            continue
+        G.remove_edge(h1, u)
+        G.remove_edge(h2, v)
+        G.add_edge(h1, v)
+        G.add_edge(h2, u)
+        done += 1
+    return done
+
+
+def _realize_deterministic(spec: BimodalSpec, seed: int) -> Optional[nx.Graph]:
+    """按 spec 直接组装图：残余层（环+弦）+ hub 层（槽位均分）。
+
+    与 Havel–Hakimi 路径相比，它**构造上就满足** I3（连通）与 I4（残余层连通、
+    最小度 >= k_min），不需要事后用随机 2-switch 去赌。
+    """
+    rng = random.Random(seed)
+    n, n_hubs = spec.n, spec.n_hubs
+    n_low = n - n_hubs
+    low_deg = list(spec.degree_sequence[n_hubs:])
+
+    a = _allocate_hub_edges(low_deg, n_hubs, spec.k_max, spec.k_min, rng)
+    if a is None:
+        return None
+    inner = [d - x for d, x in zip(low_deg, a)]
+    H = _ring_plus_chords(inner, rng)
+    if H is None:
+        return None
+
+    # 低度节点 id 平移到 n_hubs..n-1，hub 占 0..n_hubs-1（与 HH 路径的约定一致）
+    H = nx.relabel_nodes(H, {i: n_hubs + i for i in range(n_low)})
+    H.add_nodes_from(range(n_hubs))
+
+    # 槽位：每个低度节点占 a[i] 个连续槽，槽 j 归 hub (j mod n_hubs)
+    # => 每个 hub 恰得 k_max 条边；连续 a[i] <= n_hubs 个槽的 hub 编号互不相同
+    slots: List[int] = []
+    perm = list(range(n_low))
+    rng.shuffle(perm)
+    for i in perm:
+        slots.extend([n_hubs + i] * a[i])
+    if len(slots) != n_hubs * spec.k_max:
+        return None
+    for j, v in enumerate(slots):
+        H.add_edge(j % n_hubs, v)
+
+    if H.number_of_edges() != spec.m:
+        return None
+    _shuffle_hub_neighbors(H, list(range(n_hubs)), n_swaps=4 * spec.m, rng=rng)
+    return H
+
+
+# ---------------------------------------------------------------------------
+# 5. 生成图入口
 # ---------------------------------------------------------------------------
 
 def build_bimodal(
@@ -474,9 +692,23 @@ def build_bimodal(
     last_err = None
     for attempt in range(max_resample):
         s = seed + attempt
+        hubs = list(range(n_hubs))
+
+        # ---- 主路径：确定性构造（构造上即满足 I3 与 I4）----
+        H = _realize_deterministic(spec, s)
+        if H is not None and _check_invariants(H, n, m, spec, k_min, hubs=hubs):
+            H.graph["bimodal_spec"] = spec.as_dict()
+            H.graph["bimodal_notes"] = spec.notes
+            H.graph["hub_nodes"] = hubs
+            H.graph["seed_used"] = s
+            H.graph["construction"] = "ring_plus_chords"
+            return H, spec
+        if H is not None:
+            last_err = RuntimeError("确定性构造未通过 I1–I4 校验")
+
+        # ---- 回落：Havel–Hakimi + 保度 2-switch（历史路径）----
         H = nx.havel_hakimi_graph(spec.degree_sequence)
         # Havel–Hakimi 按序列顺序赋度：节点 0..n_h−1 即 hub 层
-        hubs = list(range(n_hubs))
         try:
             repair_topology(H, target_m=m, seed=s)
         except ValueError as exc:
@@ -499,6 +731,7 @@ def build_bimodal(
         H.graph["bimodal_notes"] = spec.notes
         H.graph["hub_nodes"] = hubs
         H.graph["seed_used"] = s
+        H.graph["construction"] = "havel_hakimi_2switch"
         return H, spec
 
     raise RuntimeError(f"重采样 {max_resample} 次仍未得到满足 I1–I4 的图：{last_err}")

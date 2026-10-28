@@ -1,6 +1,6 @@
 # scripts/ — 脚本索引
 
-目录内共 **70 个文件**：66 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
+目录内共 **73 个文件**：69 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
 到子目录——脚本内部统一用 `os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`
 （共 14 处 `parents[1]`）推算项目根，移动一层就会让 `sys.path` 指错位置。
 
@@ -101,13 +101,16 @@ Unified-PPO（拓扑微调 + 控制器选择）：
 | `plot_degree_distribution.py` | 度分布柱状图（Bimodal/BA/Random，论文用图），输出到 `results/figures/` | ○ |
 | `monitor_unified_ppo.py` | 解析日志监控 epoch/reward，检测平台期 | ○ |
 
-## F. 双峰构造诊断（8）—— 本方向当前重点
+## F. 双峰构造与理论验证（12）—— 本方向当前重点
 
 | 文件 | 用途 | 状态 |
 |---|---|---|
+| `theory_range.py` | **理论主脚本**：把书 §7.16 的 $f^{tot}$ 推导落到 $B(n_h)$ 族上，同时输出解析 $f^{rand}/f^{target}/f^{tot}$、残余层 $\mu$、两步分解 $A(\mu)$、实测 $R$ 与 $\bar L$，产出 `results/theory_range/`（含可直接进论文的 `family_tables.md`） | ★ |
+| `test_theory_formulas.py` | 公式自查：验证 $r\to0$ 时 $f^{tot}\to2-1/(\langle k\rangle-1)$（书 7.68）与 $k_{\max}^*\cdot r^{2/3}\to A$（书 7.67） | ★ |
+| `test_construction_sweep.py` | 构造器回归：7 个拓扑 × 13 个 $n_h$ 检查 I1–I5，统计成功率与不可行原因 | ★ |
 | `diagnose_bimodal_construction.py` | 各构造策略的 R 值/结构指标横向诊断（产出 `results/bimodal_diagnosis/`） | ★ |
 | `trace_bimodal_stages.py` | 逐阶段追踪后处理链，定位 `k_min`/边数在哪步被破坏 | ★ |
-| `theory_verify_optimality.py` | 理论验证：k_max 扫描 + 类双峰族 n_h 扫描，算 R̄ / L̄ / J，验证适用边界与最优点（产出 `results/theory_opt/`） | ★ |
+| `theory_verify_optimality.py` | △ 被 `theory_range.py` 取代。区别：它在**固定 $n_h$** 下扫 $k_{\max}$，等价于同时改 $\langle k\rangle$，不是书中那个族；结论方向正确但机制解释不准，仅保留历史结果（`results/theory_opt/`） | △ |
 | `statistical_analysis.py` | 统计口径复核：等权/池化/配对三种聚合并列，聚类 bootstrap CI 与 Wilcoxon，用于解释 Table 5 与 Table 11 的差异 | ★ |
 | `verify_bimodal_topology.py` | 验证保 N/M 前提下的鲁棒性与重构耗时 | ★ |
 | `verify_bimodal_percolation.py` | 按 `docs/Bimodal.txt` 的综合指标（无控制器，仅 GCC）验证 | ○ |
