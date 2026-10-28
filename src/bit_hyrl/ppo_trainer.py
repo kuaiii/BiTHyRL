@@ -807,7 +807,6 @@ class UnifiedPPOTrainer:
 
 
 # 统一经验数据结构（包含scale_encoding）
-from collections import namedtuple
 UnifiedExperience = namedtuple('UnifiedExperience', [
     'x',              # 节点特征
     'edge_index',     # 边索引

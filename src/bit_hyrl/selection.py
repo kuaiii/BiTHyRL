@@ -496,15 +496,7 @@ def gnn_predict(G, k, model=None, model_path=None, model_type=None, deterministi
     # #endregion
     
     try:
-        from .gnn_model import (
-            graph_to_pyg_data, 
-            get_gnn_node_features,
-            get_unified_features,
-            get_scale_encoding,
-            compute_coverage_features,
-            compute_dispersion_features,
-            get_laplacian_pe,
-        )
+        from .gnn_model import graph_to_pyg_data, get_gnn_node_features, get_unified_features, compute_coverage_features, compute_dispersion_features, get_laplacian_pe
     except ImportError as e:
         logger.error(f"导入 GNN 模块失败: {e}")
         import random

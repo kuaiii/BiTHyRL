@@ -8,7 +8,9 @@
   - progress: 训练进度可视化
   - plots: 网络绘图
   - plot_curve: 曲线绘图
-  - plot_bar: 柱状图绘图
+
+注：度分布柱状图脚本已移至 `scripts/plot_degree_distribution.py`（原 plot_bar.py 在导入时
+就会执行绘图并写入当前目录，不适合放在库里）。
 """
 
 from .training_history import (

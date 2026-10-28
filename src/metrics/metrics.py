@@ -5,9 +5,7 @@ import numpy as np
 
 # 尝试导入 GPU 工具
 try:
-    from src.utils.gpu_utils import (
-        is_gpu_available, to_tensor, to_numpy, TORCH_AVAILABLE, CUDA_AVAILABLE, DEVICE
-    )
+    from src.utils.gpu_utils import is_gpu_available, TORCH_AVAILABLE, CUDA_AVAILABLE, DEVICE
     if TORCH_AVAILABLE:
         import torch
 except ImportError:
@@ -128,13 +126,6 @@ def max_component_size_compute(G, centers):
     return 0
 
 # 统一指标接口
-def calculate_gcc(G, centers):
-    """
-    计算最大连通子图 (GCC) 指标
-    注意：这里计算的是绝对节点数，归一化在主循环中进行
-    """
-    return max_component_size_compute(G, centers)
-
 def calculate_efficiency(G, centers):
     """
     计算网络加权效率指标

@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-import numpy as np
 from math import ceil
 from src.controller.strategies import random_select_controllers, RCP
 # 导入旧的RL优化器用于其他方法（GA+RL, Onion+RL等）
 from src.controller.rl_optimizer import train_and_select
-from src.bit_hyrl.training import train_and_select as bit_hyrl_train_and_select
 from src.simulation.dismantling import node_attack
 from src.utils.logger import get_logger
-from src.bit_hyrl.selection import hybrid_gnn_select, gnn_predict
+from src.bit_hyrl.selection import hybrid_gnn_select
 from network_metrics import compute as _nm_compute
 logger = get_logger(__name__)
 

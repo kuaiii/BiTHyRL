@@ -2,13 +2,8 @@
 from collections import defaultdict
 import networkx as nx
 import random
-import itertools
 from network_metrics.functional.network import get_shortest_dist
-from src.utils.gpu_utils import (
-    is_gpu_available, to_tensor, to_numpy, 
-    compute_shortest_paths_from_sources_gpu, gpu_greedy_selection,
-    TORCH_AVAILABLE, CUDA_AVAILABLE, DEVICE
-)
+from src.utils.gpu_utils import is_gpu_available, gpu_greedy_selection, TORCH_AVAILABLE
 from tqdm import tqdm
 import numpy as np
 from math import ceil

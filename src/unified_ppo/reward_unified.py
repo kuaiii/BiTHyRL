@@ -12,13 +12,7 @@ import numpy as np
 import networkx as nx
 from scipy import stats
 
-from src.bit_hyrl.reward import (
-    _simulate_attack_sequence,
-    _get_dispersion_score,
-    _get_adaptive_aggregation,
-    _get_curriculum_methods,
-    ADVERSARIAL_ATTACK_METHODS,
-)
+from src.bit_hyrl.reward import _simulate_attack_sequence, _get_dispersion_score, _get_adaptive_aggregation, ADVERSARIAL_ATTACK_METHODS
 from network_dismantling.unified_interface import dismantle
 
 

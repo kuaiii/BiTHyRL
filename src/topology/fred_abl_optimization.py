@@ -211,7 +211,6 @@ class FRED_ABL:
 
     def run(self, iterations=30, initial_samples=5, verbose=True):
         import time
-        from src.utils.logger import log_algorithm_iteration
         
         start_time = time.time()
         if verbose:

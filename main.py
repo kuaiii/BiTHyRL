@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import argparse
-import networkx as nx
 import os
 import random
 import logging
@@ -29,7 +28,6 @@ from src.utils.io import save_comprehensive_metrics, save_execution_times, save_
 from src.utils.logger import setup_logger, get_logger, algorithm_timer
 from network_metrics import compute as _nm_compute
 import time
-import numpy as np
 
 logger = get_logger(__name__)
 

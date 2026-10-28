@@ -19,7 +19,6 @@ BiT-HyRL 双峰拓扑重构模块。
 import networkx as nx
 import random
 import numpy as np
-from math import ceil
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -1062,38 +1061,7 @@ def create_bimodal_adaptive(G, seed=None, search_range=None, num_samples=10, ver
         # 构造双峰网络
         current_seed = seed + hub_num if seed is not None else None
         G_candidate = create_bimodal_network_exact(G, hub_num=hub_num, seed=current_seed)
-        
-        # #region agent log - 检查候选网络约束
-        import json, os, time as time_module
-        debug_log_path = r"e:\项目\02-论文\03-论文计划\17-BIG\code\v2\BiT-HyRL\.cursor\debug.log"
-        try:
-            os.makedirs(os.path.dirname(debug_log_path), exist_ok=True)
-            with open(debug_log_path, 'a', encoding='utf-8') as f:
-                log_entry = {
-                    "id": f"log_{int(time_module.time() * 1000)}_candidate_{hub_num}",
-                    "timestamp": int(time_module.time() * 1000),
-                    "location": "reconstruction.py:create_bimodal_adaptive",
-                    "message": f"Candidate network hub_num={hub_num}",
-                    "hypothesisId": "H1",
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "data": {
-                        "hub_num": hub_num,
-                        "target_nodes": N,
-                        "target_edges": M,
-                        "candidate_nodes": G_candidate.number_of_nodes() if G_candidate else None,
-                        "candidate_edges": G_candidate.number_of_edges() if G_candidate else None,
-                        "is_connected": nx.is_connected(G_candidate) if G_candidate else False,
-                        "nodes_match": N == G_candidate.number_of_nodes() if G_candidate else False,
-                        "edges_match": M == G_candidate.number_of_edges() if G_candidate else False,
-                        "is_valid": G_candidate is not None and G_candidate.number_of_nodes() > 0
-                    }
-                }
-                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-        except Exception:
-            pass
-        # #endregion
-        
+
         if G_candidate is None or G_candidate.number_of_nodes() == 0:
             if verbose:
                 print(f"  hub_num={hub_num:3d}: 构造失败")
@@ -1103,33 +1071,6 @@ def create_bimodal_adaptive(G, seed=None, search_range=None, num_samples=10, ver
         eval_seed = current_seed + 1000 if current_seed is not None else None
         R_weight, R_degree, R_random = _evaluate_robustness(G_candidate, seed=eval_seed)
         
-        # #region agent log - 评估结果（修复后）
-        try:
-            import json, os, time as time_module
-            debug_log_path = r"e:\项目\02-论文\03-论文计划\17-BIG\code\v2\BiT-HyRL\.cursor\debug.log"
-            os.makedirs(os.path.dirname(debug_log_path), exist_ok=True)
-            with open(debug_log_path, 'a', encoding='utf-8') as f:
-                log_entry = {
-                    "id": f"log_{int(time_module.time() * 1000)}_eval_{hub_num}_fixed",
-                    "timestamp": int(time_module.time() * 1000),
-                    "location": "reconstruction.py:create_bimodal_adaptive",
-                    "message": f"Evaluation result hub_num={hub_num} (after fix)",
-                    "hypothesisId": "H2",
-                    "sessionId": "debug-session",
-                    "runId": "post-fix",
-                    "data": {
-                        "hub_num": hub_num,
-                        "R_weight": R_weight,
-                        "R_degree": R_degree,
-                        "R_random": R_random,
-                        "is_best": R_weight > best_R_weight,
-                        "note": "Using attack_step as x-coordinate, normalized by initial_nodes"
-                    }
-                }
-                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-        except Exception:
-            pass
-        # #endregion
         
         results.append({
             'hub_num': hub_num,
@@ -1156,41 +1097,7 @@ def create_bimodal_adaptive(G, seed=None, search_range=None, num_samples=10, ver
     if best_G is None:
         logger.warning("所有候选 hub_num 都失败，返回默认双峰网络")
         return create_bimodal_network_exact(G, hub_num=1, seed=seed)
-    
-    # #region agent log - 最终返回的网络约束检查
-    try:
-        import json, os, time as time_module
-        debug_log_path = r"e:\项目\02-论文\03-论文计划\17-BIG\code\v2\BiT-HyRL\.cursor\debug.log"
-        os.makedirs(os.path.dirname(debug_log_path), exist_ok=True)
-        with open(debug_log_path, 'a', encoding='utf-8') as f:
-            log_entry = {
-                "id": f"log_{int(time_module.time() * 1000)}_final_network",
-                "timestamp": int(time_module.time() * 1000),
-                "location": "reconstruction.py:create_bimodal_adaptive",
-                "message": "Final selected network constraints",
-                "hypothesisId": "H1",
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "data": {
-                    "best_hub_num": best_hub_num,
-                    "best_R_weight": best_R_weight,
-                    "target_nodes": N,
-                    "target_edges": M,
-                    "final_nodes": best_G.number_of_nodes(),
-                    "final_edges": best_G.number_of_edges(),
-                    "is_connected": nx.is_connected(best_G),
-                    "nodes_match": N == best_G.number_of_nodes(),
-                    "edges_match": M == best_G.number_of_edges(),
-                    "constraints_satisfied": (N == best_G.number_of_nodes() and 
-                                            M == best_G.number_of_edges() and 
-                                            nx.is_connected(best_G))
-                }
-            }
-            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-    except Exception:
-        pass
-    # #endregion
-    
+
     # 存储搜索结果到图属性（可选，用于调试）
     best_G.graph['adaptive_search'] = {
         'best_hub_num': best_hub_num,
@@ -1614,47 +1521,6 @@ def create_bimodal_theoretical(n, m, seed=42):
         if current_m != m:
             _adjust_edge_count(G, m, seed=seed)
         G_final = G
-    
-    # #region agent log - 假设E: 记录双峰重构效果（用于分析稀疏网络重构问题）
-    import json, os, time as time_module
-    debug_log_path = r"e:\项目\02-论文\03-论文计划\17-BIG\code\v2\BiT-HyRL\.cursor\debug.log"
-    try:
-        os.makedirs(os.path.dirname(debug_log_path), exist_ok=True)
-        degrees = [d for _, d in G_final.degree()]
-        actual_max_degree = max(degrees) if degrees else 0
-        actual_avg_degree = sum(degrees) / len(degrees) if degrees else 0
-        actual_min_degree = min(degrees) if degrees else 0
-        hub_threshold = actual_avg_degree * 2
-        num_hubs = sum(1 for d in degrees if d > hub_threshold)
-        degree_variance = np.var(degrees) if degrees else 0
-        hub_degree_ratio = actual_max_degree / actual_avg_degree if actual_avg_degree > 0 else 0
-        log_entry = {
-            "timestamp": int(time_module.time() * 1000),
-            "location": "reconstruction.py:create_bimodal_theoretical",
-            "message": "Bimodal reconstruction effect for hypothesis E",
-            "hypothesisId": "E",
-            "sessionId": "debug-session",
-            "data": {
-                "target_nodes": n,
-                "target_edges": m,
-                "target_avg_degree": round(avg_k, 4),
-                "sparse_mode": use_sparse,
-                "theoretical_k_max": actual_max_degree,
-                "actual_max_degree": actual_max_degree,
-                "actual_avg_degree": round(actual_avg_degree, 4),
-                "num_hubs": num_hubs,
-                "hub_degree_ratio": round(hub_degree_ratio, 4),
-                "degree_variance": round(float(degree_variance), 4),
-                "k_base": actual_min_degree,
-                "is_connected": nx.is_connected(G_final),
-                "final_edges": G_final.number_of_edges()
-            }
-        }
-        with open(debug_log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-    except Exception as e:
-        pass
-    # #endregion
 
     return G_final
 

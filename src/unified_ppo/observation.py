@@ -7,7 +7,7 @@ import networkx as nx
 import torch
 
 from src.bit_hyrl import config
-from src.bit_hyrl.gnn_model import get_gnn_node_features, graph_to_pyg_data
+from src.bit_hyrl.gnn_model import get_gnn_node_features
 
 DEVICE = config.DEVICE
 

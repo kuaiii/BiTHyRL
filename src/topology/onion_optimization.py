@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import networkx as nx
 import random
-from tqdm import tqdm
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

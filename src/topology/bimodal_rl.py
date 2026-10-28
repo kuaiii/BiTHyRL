@@ -4,13 +4,10 @@ import numpy as np
 import random
 import torch
 import copy
-from scipy.stats import kurtosis, skew
-import logging
 import time
-from functools import lru_cache
 from src.utils.logger import get_logger
 from src.topology.romen_optimization import SACAgent, NetworkTopology, ROHEMOptimizer
-from src.controller.rl_optimizer import predict, calculate_reward, load_or_train_model
+from src.controller.rl_optimizer import load_or_train_model
 
 logger = get_logger(__name__)
 

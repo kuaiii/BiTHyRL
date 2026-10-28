@@ -46,13 +46,20 @@ BiT-HyRL/
 ├── scripts/
 │   ├── train_bit_hyrl.py        # BiT-HyRL 训练入口
 │   └── run_bit_hyrl.py          # BiT-HyRL 推理入口
-├── results/                     # 实验结果
-├── logs/                        # 日志文件
+├── results/                     # 实验结果（运行产物，不入库）
+├── logs/                        # 运行日志（不入库）
+├── archive/                     # 历史权重/日志归档区（不入库，见 archive/README.md）
+├── docs/                        # 设计文档（维护入口：docs/PROJECT_STRUCTURE.md）
 ├── main.py                      # 主实验入口 (对比实验)
 ├── main_bit_hyrl.py             # BiT-HyRL 独立运行入口
 ├── requirements.txt             # 依赖
 └── README.md                    # 本文件
 ```
+
+> **维护入口**：代码分层、一次运行的数据流、"想改 X 该动哪个文件"、已知技术债，
+> 统一整理在 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)；
+> 63 个脚本各自的用途与主用/历史状态见 [`scripts/README.md`](scripts/README.md)。
+> 注意：`dataset/all/`（训练集）与模型权重 `.pth` 均不入库，需本地生成或另行获取。
 
 ---
 

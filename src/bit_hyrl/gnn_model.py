@@ -11,8 +11,8 @@ import hashlib
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GATConv, global_mean_pool, global_add_pool
-from torch_geometric.utils import from_networkx, degree
+from torch_geometric.nn import GATConv, global_mean_pool
+from torch_geometric.utils import degree
 import networkx as nx
 import numpy as np
 

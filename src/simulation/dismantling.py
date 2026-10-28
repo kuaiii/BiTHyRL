@@ -1,22 +1,16 @@
 # -*- coding: utf-8 -*-
 import networkx as nx
 import random
-import logging
 import numpy as np
 from itertools import combinations
-from tqdm import tqdm
 from network_metrics.functional.network import max_component_size_compute as calculate_gcc
-from network_metrics.functional.network import coverage_compute2, weight_efficiency_compute, max_component_size_compute
 from network_metrics.functional.controller import calculate_csa, calculate_cce as calculate_control_entropy, calculate_wcp
 from src.utils.logger import get_logger
-from src.utils.io import save_metric_log
 import network_dismantling as nd  # 统一拆解接口
 
 # 尝试导入 GPU 工具
 try:
-    from src.utils.gpu_utils import (
-        is_gpu_available, to_tensor, to_numpy, TORCH_AVAILABLE, CUDA_AVAILABLE, DEVICE
-    )
+    from src.utils.gpu_utils import is_gpu_available, TORCH_AVAILABLE, CUDA_AVAILABLE, DEVICE
     if TORCH_AVAILABLE:
         import torch
 except ImportError:

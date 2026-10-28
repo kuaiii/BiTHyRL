@@ -7,8 +7,6 @@ BiT-HyRL 训练进度可视化模块。
   - 实时训练曲线可视化
   - 训练统计信息展示
 """
-import os
-import sys
 import time
 from datetime import timedelta
 from typing import Optional, List, Dict, Any
@@ -19,8 +17,6 @@ try:
     from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, MofNCompleteColumn
     from rich.table import Table
     from rich.panel import Panel
-    from rich.live import Live
-    from rich.layout import Layout
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False

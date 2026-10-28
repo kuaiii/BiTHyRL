@@ -7,7 +7,6 @@ import numpy as np
 import networkx as nx
 import random
 import math
-from collections import defaultdict
 import warnings
 
 warnings.filterwarnings("ignore")
