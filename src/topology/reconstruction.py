@@ -20,6 +20,7 @@ import networkx as nx
 import random
 import numpy as np
 from src.utils.logger import get_logger
+from src.topology.bimodal_construction import build_bimodal as _build_bimodal_v2
 
 logger = get_logger(__name__)
 
@@ -1433,15 +1434,13 @@ def _bimodal_degree_sequence_sparse(n, m, num_hubs=1, seed=None):
     return degree_seq
 
 
-def create_bimodal_theoretical(n, m, seed=42):
+def _create_bimodal_theoretical_legacy(n, m, seed=42):
     """
-    Bimodal Network (Based on k_max = A * N^(2/3))。
-    对低密度网络（平均度小、边数少）使用稀疏优化：度序列可图化、删边时保持连通性。
+    Bimodal Network (Based on k_max = A * N^(2/3))——旧实现，仅作兜底保留。
 
-    Args:
-        n: 节点数
-        m: 边数
-        seed: 随机种子
+    已知缺陷（见 docs/theory/bimodal_optimality.md §6.1）：先 `_ensure_connectivity`
+    加边修连通、再 `_adjust_edge_count` 删边回补边数，两步互相抵消，把低度层
+    k_min 从 2 打到 1。新路径请走 `create_bimodal_theoretical`。
     """
     if n < 2 or m < n - 1:
         G = nx.path_graph(n) if n >= 2 else nx.Graph()
@@ -1523,6 +1522,33 @@ def create_bimodal_theoretical(n, m, seed=42):
         G_final = G
 
     return G_final
+
+
+def create_bimodal_theoretical(n, m, seed=42):
+    """Bimodal Network（k_max = A·N^(2/3)，单 hub），严格满足 I1–I4。
+
+    这是 v2 实现：度序列由 `construct_bimodal_sequence` 显式给出（Σ=2M 恒成立，
+    奇偶自动成立），连通性由**保度 2-switch** 修复（不改边数、不改度数），并对
+    残余低度层单独做连通修复。
+
+    不变量（详见 `src/topology/bimodal_construction.py`）：
+        I1 |V|=N   I2 |E|=M   I3 整图连通   I4 摘掉 hub 后残余层仍连通且 k_min≥2
+
+    当 (n, m) 不具备可行性（例如 m < n−1、或 <k>≤2）时，退回旧实现并记一条警告，
+    保证调用方行为不变。
+    """
+    if n < 2 or m < n - 1:
+        return _create_bimodal_theoretical_legacy(n, m, seed=seed)
+    try:
+        G, spec = _build_bimodal_v2(n, m, n_hubs=1, seed=seed)
+        G.graph["construction"] = "bimodal_v2_single_hub"
+        G.graph["bimodal_strategy"] = spec.strategy
+        return G
+    except Exception as exc:  # 极稀疏/极端 (N,M) 下的兜底
+        logger.warning(
+            "双峰 v2 构造失败（n=%s, m=%s）：%s；回退到旧实现", n, m, exc
+        )
+        return _create_bimodal_theoretical_legacy(n, m, seed=seed)
 
 
 def _ensure_connected_degree_preserving(G, seed=None, max_attempts=5000):
