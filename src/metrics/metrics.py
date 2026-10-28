@@ -321,6 +321,14 @@ def calculate_control_entropy(G, centers, initial_sum_A=None):
     # 注意：如果有控制器是孤立的且没有交换节点连接，A_j = 0
     A_list = [A_map.get(c, 0) for c in centers]
     sum_A = sum(A_list)
+
+    # 退化情形：所有存活控制器的服务域都为空（总负载为 0）。
+    # 此时各 p_j 不存在，H_C 不具"负载均衡度"含义；返回 0.0 仅为兼容下游绘图，
+    # 但它与"单一控制器承担全部负载"（p=1, H_C=0）数值相同、语义相反，
+    # 论文中必须报告为"未定义"并与 GCC=CSA=0 一并解读。
+    # 见 docs/protocol/cascade_and_metrics.md §5(b)。
+    if sum_A == 0:
+        return 0.0
     
     # 确定分母D：如果提供了initial_sum_A，使用固定值；否则使用当前状态的动态和
     if initial_sum_A is not None:

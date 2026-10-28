@@ -272,7 +272,7 @@ def get_dismantling_sequence(G, method, seed=None):
         logger.warning(f"network_dismantling method '{nd_method}' failed: {e}, falling back to random.")
         return nd.dismantle(G, method="random", seed=seed)
 
-def simulate_dismantling(G, sequence, nodes_num, centers):
+def simulate_dismantling(G, sequence, nodes_num, centers, return_diagnostics=False):
     """
     模拟网络拆解过程。
     
@@ -355,6 +355,12 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
     
     x_when_gcc_20_percent = None
     attack_step = 0  # 攻击步数（从0开始，每次攻击+1，不管节点是否存在）
+
+    # 分项计数（对应 docs/protocol/cascade_and_metrics.md §3.4）：
+    #   attacked  被攻击序列显式选中的节点
+    #   failed    因所在分量无控制器而被整块删除的功能失效节点
+    #   skipped   序列中已被前置级联移除、因而实际未执行的条目
+    diag = {"attacked": 0, "failed": 0, "skipped": 0}
     
     # 记录上一次的指标值（用于节点已被移除时保持不变）
     last_metrics = {
@@ -373,6 +379,7 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
         
         # 如果节点已经不在图中（可能在之前的级联失效中被移除），记录上一次的值
         if not G.has_node(node):
+            diag["skipped"] += 1
             # 节点已被移除，但仍然记录这一步（y值保持不变）
             current_nodes = G.number_of_nodes()
             x_val = (nodes_num - current_nodes) / nodes_num
@@ -392,6 +399,7 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
         edges = list(G.edges(node))
         G.remove_edges_from(edges)
         G.remove_node(node)
+        diag["attacked"] += 1
         
         # 判断被移除的节点是否是控制器
         if node in centers:
@@ -418,6 +426,7 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
                         edges = list(G.edges(inode))
                         G.remove_edges_from(edges)
                         G.remove_node(inode)
+                        diag["failed"] += 1
                         # 注意：级联失效的节点不单独记录攻击步数
 
         # 3. 计算指标并记录
@@ -494,7 +503,13 @@ def simulate_dismantling(G, sequence, nodes_num, centers):
             
             # 继续攻击直到网络完全崩溃或序列结束
             # 不再提前break，让攻击继续进行
-                
+
+    if return_diagnostics:
+        diag["removed_total"] = diag["attacked"] + diag["failed"]
+        diag["cascade_share"] = (
+            diag["failed"] / diag["removed_total"] if diag["removed_total"] else 0.0
+        )
+        return metrics_dict, x_when_gcc_20_percent, attack_steps_dict, diag
     return metrics_dict, x_when_gcc_20_percent, attack_steps_dict
 
 def node_attack(G, nodes_num, centers, flag, seed=None):

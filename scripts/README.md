@@ -1,6 +1,6 @@
 # scripts/ — 脚本索引
 
-目录内共 **68 个文件**：64 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
+目录内共 **70 个文件**：66 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
 到子目录——脚本内部统一用 `os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`
 （共 14 处 `parents[1]`）推算项目根，移动一层就会让 `sys.path` 指错位置。
 
@@ -107,6 +107,8 @@ Unified-PPO（拓扑微调 + 控制器选择）：
 |---|---|---|
 | `diagnose_bimodal_construction.py` | 各构造策略的 R 值/结构指标横向诊断（产出 `results/bimodal_diagnosis/`） | ★ |
 | `trace_bimodal_stages.py` | 逐阶段追踪后处理链，定位 `k_min`/边数在哪步被破坏 | ★ |
+| `theory_verify_optimality.py` | 理论验证：k_max 扫描 + 类双峰族 n_h 扫描，算 R̄ / L̄ / J，验证适用边界与最优点（产出 `results/theory_opt/`） | ★ |
+| `statistical_analysis.py` | 统计口径复核：等权/池化/配对三种聚合并列，聚类 bootstrap CI 与 Wilcoxon，用于解释 Table 5 与 Table 11 的差异 | ★ |
 | `verify_bimodal_topology.py` | 验证保 N/M 前提下的鲁棒性与重构耗时 | ★ |
 | `verify_bimodal_percolation.py` | 按 `docs/Bimodal.txt` 的综合指标（无控制器，仅 GCC）验证 | ○ |
 | `scan_bimodal_hub_ratio.py` | 扫描 hub 比例对韧性的影响 | ○ |
