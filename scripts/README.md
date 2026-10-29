@@ -1,6 +1,6 @@
 # scripts/ — 脚本索引
 
-目录内共 **75 个文件**：71 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
+目录内共 **78 个文件**：74 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
 到子目录——脚本内部统一用 `os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`
 （共 14 处 `parents[1]`）推算项目根，移动一层就会让 `sys.path` 指错位置。
 
@@ -101,10 +101,13 @@ Unified-PPO（拓扑微调 + 控制器选择）：
 | `plot_degree_distribution.py` | 度分布柱状图（Bimodal/BA/Random，论文用图），输出到 `results/figures/` | ○ |
 | `monitor_unified_ppo.py` | 解析日志监控 epoch/reward，检测平台期 | ○ |
 
-## F. 双峰构造与理论验证（14）—— 本方向当前重点
+## F. 双峰构造与理论验证（18）—— 本方向当前重点
 
 | 文件 | 用途 | 状态 |
 |---|---|---|
+| `test_phase_theory.py` | **相图理论六项自检**：恒等式、μ≥2 与残差约束等价、ρ→0 的 `N^(−1/3)` 收敛速率、最优标度、regime 与 applicability 一致性、`n_h*` 单调性 | ★ |
+| `phase_diagram.py` | **`(N,⟨k⟩)` 网格实验**：6 档规模 × 6 档平均度，验证三区划分与 `N_min` 预测；产出 `phase_experiment.csv` / `phase_best.csv` / `phase_tables.md` | ★ |
+| `ratio_surface.py` | **`(n_h, k_max)` 联合曲面**：回答「两个峰各占多少」，检验 `R̄(k_max)` 的平台结构；产出 `surface.csv` / `surface_best.csv` | ★ |
 | `topology_vs_baselines.py` | **同预算 (N,M) 基准**：双峰族（1hub/ftot/oracle）vs 随机连通图/BA/近正则/保度重连，7 数据集 × 5 seeds，输出排名与配对差（`results/topology_vs_baselines/`） | ★ |
 | `service_domain_semantics.py` | **服务域语义检验**：复制式 vs 划分式的 CSA/$H_C/$k_i$ 对照，量化 $H_C$ 在复制式下的退化（`results/service_domain_semantics/`） | ★ |
 | `theory_range.py` | **理论主脚本**：把书 §7.16 的 $f^{tot}$ 推导落到 $B(n_h)$ 族上，同时输出解析 $f^{rand}/f^{target}/f^{tot}$、残余层 $\mu$、两步分解 $A(\mu)$、实测 $R$ 与 $\bar L$，产出 `results/theory_range/`（含可直接进论文的 `family_tables.md`） | ★ |
