@@ -1,6 +1,6 @@
 # scripts/ — 脚本索引
 
-目录内共 **73 个文件**：69 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
+目录内共 **75 个文件**：71 个 `.py` + 3 个 `.bat` + 1 个 `.sh`。全部为**平铺**结构，不要移动它们
 到子目录——脚本内部统一用 `os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`
 （共 14 处 `parents[1]`）推算项目根，移动一层就会让 `sys.path` 指错位置。
 
@@ -101,10 +101,12 @@ Unified-PPO（拓扑微调 + 控制器选择）：
 | `plot_degree_distribution.py` | 度分布柱状图（Bimodal/BA/Random，论文用图），输出到 `results/figures/` | ○ |
 | `monitor_unified_ppo.py` | 解析日志监控 epoch/reward，检测平台期 | ○ |
 
-## F. 双峰构造与理论验证（12）—— 本方向当前重点
+## F. 双峰构造与理论验证（14）—— 本方向当前重点
 
 | 文件 | 用途 | 状态 |
 |---|---|---|
+| `topology_vs_baselines.py` | **同预算 (N,M) 基准**：双峰族（1hub/ftot/oracle）vs 随机连通图/BA/近正则/保度重连，7 数据集 × 5 seeds，输出排名与配对差（`results/topology_vs_baselines/`） | ★ |
+| `service_domain_semantics.py` | **服务域语义检验**：复制式 vs 划分式的 CSA/$H_C/$k_i$ 对照，量化 $H_C$ 在复制式下的退化（`results/service_domain_semantics/`） | ★ |
 | `theory_range.py` | **理论主脚本**：把书 §7.16 的 $f^{tot}$ 推导落到 $B(n_h)$ 族上，同时输出解析 $f^{rand}/f^{target}/f^{tot}$、残余层 $\mu$、两步分解 $A(\mu)$、实测 $R$ 与 $\bar L$，产出 `results/theory_range/`（含可直接进论文的 `family_tables.md`） | ★ |
 | `test_theory_formulas.py` | 公式自查：验证 $r\to0$ 时 $f^{tot}\to2-1/(\langle k\rangle-1)$（书 7.68）与 $k_{\max}^*\cdot r^{2/3}\to A$（书 7.67） | ★ |
 | `test_construction_sweep.py` | 构造器回归：7 个拓扑 × 13 个 $n_h$ 检查 I1–I5，统计成功率与不可行原因 | ★ |
